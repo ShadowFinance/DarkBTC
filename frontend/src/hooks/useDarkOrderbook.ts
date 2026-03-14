@@ -1,10 +1,14 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useAccount, useContract, useSendTransaction } from '@starknet-react/core';
+import { useAccount, useSendTransaction } from '@starknet-react/core';
+import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES } from '../constants/contracts';
 import { generateSecret, hashOrderCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
+import { getProvider } from '../lib/starknet';
 import type { HexString } from '../types';
-import darkOrderbookAbi from '../../abis/dark_orderbook.json';
+import darkOrderbookAbiJson from '../abis/dark_orderbook.json';
+
+const darkOrderbookAbi = darkOrderbookAbiJson as Abi;
 
 interface SubmitOrderParams {
   side: 'Buy' | 'Sell';
@@ -104,19 +108,14 @@ export function useCancelOrder() {
 }
 
 export function useRecentFills() {
-  const { contract } = useContract({
-    abi: darkOrderbookAbi,
-    address: CONTRACT_ADDRESSES.DARK_ORDERBOOK,
-  });
-
   return useQuery({
     queryKey: ['recent_fills'],
     queryFn: async (): Promise<HexString[]> => {
-      if (!contract) return [];
-      const result = (await contract.call('get_recent_fills', ['50'])) as bigint[];
+      const provider = getProvider();
+      const contract = new Contract(darkOrderbookAbi, CONTRACT_ADDRESSES.DARK_ORDERBOOK, provider);
+      const result = (await contract.call('get_recent_fills', [50])) as bigint[];
       return result.map((f) => bigIntToHex(f));
     },
-    enabled: !!contract,
     refetchInterval: 15000,
   });
 }

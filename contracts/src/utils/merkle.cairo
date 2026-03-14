@@ -21,6 +21,7 @@ pub fn verify_merkle_proof(
             break;
         }
         let sibling = *path.at(i);
+        // Use bit shift to extract the i-th bit of indices
         let bit = (indices / pow2(i)) % 2;
         if bit == 0 {
             current = hash_pair(current, sibling);
@@ -33,6 +34,7 @@ pub fn verify_merkle_proof(
 }
 
 pub fn pow2(exp: u32) -> u32 {
+    // Efficient power of 2 via repeated doubling
     let mut result: u32 = 1;
     let mut i: u32 = 0;
     loop {

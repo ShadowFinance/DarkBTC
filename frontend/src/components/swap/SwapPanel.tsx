@@ -45,7 +45,10 @@ export default function SwapPanel() {
   async function handleSwap() {
     if (!quote || amountInBigInt === 0n) return;
 
-    const slippageBps = Math.floor(parseFloat(effectiveSlippage) * 100);
+    const slippageNum = parseFloat(effectiveSlippage);
+    if (isNaN(slippageNum) || slippageNum < 0 || slippageNum > 50) return;
+
+    const slippageBps = Math.floor(slippageNum * 100);
     const minOut = (quote.outputAmount * BigInt(10000 - slippageBps)) / 10000n;
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 

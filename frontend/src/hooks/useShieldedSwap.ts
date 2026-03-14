@@ -1,10 +1,14 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useAccount, useContract, useSendTransaction } from '@starknet-react/core';
+import { useAccount, useSendTransaction } from '@starknet-react/core';
+import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashNoteCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
+import { getProvider } from '../lib/starknet';
 import type { HexString, SwapQuote } from '../types';
-import shieldedSwapAbi from '../../abis/shielded_swap.json';
+import shieldedSwapAbiJson from '../abis/shielded_swap.json';
+
+const shieldedSwapAbi = shieldedSwapAbiJson as Abi;
 
 interface SwapParams {
   assetIn: HexString;
@@ -15,31 +19,28 @@ interface SwapParams {
 }
 
 export function useSwapQuote(assetIn: HexString, assetOut: HexString, amountIn: bigint) {
-  const { contract } = useContract({
-    abi: shieldedSwapAbi,
-    address: CONTRACT_ADDRESSES.SHIELDED_SWAP,
-  });
-
   return useQuery({
     queryKey: ['swap_quote', assetIn, assetOut, amountIn.toString()],
     queryFn: async (): Promise<SwapQuote | null> => {
-      if (!contract || amountIn === 0n) return null;
-      const result = (await contract.call('get_swap_quote', [assetIn, assetOut, amountIn.toString(), '0'])) as {
+      if (amountIn === 0n) return null;
+      const provider = getProvider();
+      const contract = new Contract(shieldedSwapAbi, CONTRACT_ADDRESSES.SHIELDED_SWAP, provider);
+      const result = (await contract.call('get_swap_quote', [assetIn, assetOut, { low: amountIn, high: 0n }])) as {
         input_amount: bigint;
         output_amount: bigint;
-        price_impact_bps: number;
-        fee_bps: number;
+        price_impact_bps: bigint;
+        fee_bps: bigint;
       };
       return {
         inputAmount: result.input_amount,
         outputAmount: result.output_amount,
-        priceImpactBps: result.price_impact_bps,
-        feeBps: result.fee_bps,
+        priceImpactBps: Number(result.price_impact_bps),
+        feeBps: Number(result.fee_bps),
         assetIn,
         assetOut,
       };
     },
-    enabled: !!contract && amountIn > 0n,
+    enabled: amountIn > 0n && !!assetIn && !!assetOut,
     refetchInterval: 10000,
   });
 }
@@ -59,7 +60,6 @@ export function useExecuteSwap() {
 
       const inputNote = unspentNotes[0];
 
-      // Fetch Merkle proof from indexer
       const proofRes = await fetch(`${INDEXER_URL}/proof/${inputNote.commitment}`);
       const proofData = (await proofRes.json()) as { proof: string[]; indices: number; root: string };
 
@@ -112,19 +112,15 @@ export function useExecuteSwap() {
 }
 
 export function usePoolReserves(assetA: HexString, assetB: HexString) {
-  const { contract } = useContract({
-    abi: shieldedSwapAbi,
-    address: CONTRACT_ADDRESSES.SHIELDED_SWAP,
-  });
-
   return useQuery({
     queryKey: ['pool_reserves', assetA, assetB],
     queryFn: async (): Promise<[bigint, bigint]> => {
-      if (!contract) return [0n, 0n];
+      const provider = getProvider();
+      const contract = new Contract(shieldedSwapAbi, CONTRACT_ADDRESSES.SHIELDED_SWAP, provider);
       const result = (await contract.call('get_reserves', [assetA, assetB])) as [bigint, bigint];
       return result;
     },
-    enabled: !!contract,
+    enabled: !!assetA && !!assetB,
     refetchInterval: 15000,
   });
 }

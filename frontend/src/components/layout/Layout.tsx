@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ArrowLeftRight, Gavel, BookOpen, LayoutDashboard, Menu, X } from 'lucide-react';
+import { ArrowLeftRight, Gavel, BookOpen, LayoutDashboard, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Header from './Header';
 

@@ -69,7 +69,10 @@ pub mod ShieldedSwap {
     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
-    #[storage]
+// 30 bps fee: amount_in * (10000 - 30) / 10000
+const FEE_BPS: u256 = 30_u256;
+const FEE_MULTIPLIER: u256 = 9970_u256; // 10000 - FEE_BPS
+const BPS_DENOMINATOR: u256 = 10000_u256;
     struct Storage {
         reserve_a: Map<(ContractAddress, ContractAddress), u256>,
         reserve_b: Map<(ContractAddress, ContractAddress), u256>,
@@ -197,21 +200,21 @@ pub mod ShieldedSwap {
             assert(reserve_in > 0_u256, Errors::INSUFFICIENT_BALANCE);
             assert(reserve_out > 0_u256, Errors::INSUFFICIENT_BALANCE);
 
-            let amount_in_with_fee = amount_in * 9970_u256;
+            let amount_in_with_fee = amount_in * FEE_MULTIPLIER;
             let amount_out = reserve_out
                 * amount_in_with_fee
-                / (reserve_in * 10000_u256 + amount_in_with_fee);
+                / (reserve_in * BPS_DENOMINATOR + amount_in_with_fee);
 
             assert(amount_out >= min_amount_out, Errors::SLIPPAGE_EXCEEDED);
 
             let price_impact_bps: u16 = {
-                let price_before = reserve_out * 10000_u256 / reserve_in;
+                let price_before = reserve_out * BPS_DENOMINATOR / reserve_in;
                 let price_after = (reserve_out - amount_out)
                     * 10000_u256
                     / (reserve_in + amount_in);
                 if price_before > price_after {
                     let diff = price_before - price_after;
-                    let impact = diff * 10000_u256 / price_before;
+                    let impact = diff * BPS_DENOMINATOR / price_before;
                     if impact > 65535_u256 {
                         65535_u16
                     } else {
@@ -291,19 +294,19 @@ pub mod ShieldedSwap {
                 };
             }
 
-            let amount_in_with_fee = amount_in * 9970_u256;
+            let amount_in_with_fee = amount_in * FEE_MULTIPLIER;
             let amount_out = reserve_out
                 * amount_in_with_fee
-                / (reserve_in * 10000_u256 + amount_in_with_fee);
+                / (reserve_in * BPS_DENOMINATOR + amount_in_with_fee);
 
             let price_impact_bps: u16 = {
-                let price_before = reserve_out * 10000_u256 / reserve_in;
+                let price_before = reserve_out * BPS_DENOMINATOR / reserve_in;
                 let price_after = (reserve_out - amount_out)
                     * 10000_u256
                     / (reserve_in + amount_in);
                 if price_before > price_after {
                     let diff = price_before - price_after;
-                    let impact = diff * 10000_u256 / price_before;
+                    let impact = diff * BPS_DENOMINATOR / price_before;
                     if impact > 65535_u256 {
                         65535_u16
                     } else {

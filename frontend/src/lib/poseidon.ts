@@ -51,6 +51,7 @@ export function hashOrderCommitment(
 }
 
 export function generateSecret(): bigint {
+  // 31 bytes ensures the result fits within the Starknet field element (< 2^251)
   const bytes = new Uint8Array(31);
   crypto.getRandomValues(bytes);
   let hex = '';

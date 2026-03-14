@@ -1,27 +1,27 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useAccount, useContract, useSendTransaction } from '@starknet-react/core';
+import { useAccount, useSendTransaction } from '@starknet-react/core';
+import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES } from '../constants/contracts';
 import { generateSecret, hashBidCommitment, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
+import { getProvider } from '../lib/starknet';
 import type { HexString, AuctionItem, AuctionStateType } from '../types';
-import sealedAuctionAbi from '../../abis/sealed_auction.json';
+import sealedAuctionAbiJson from '../abis/sealed_auction.json';
+
+const sealedAuctionAbi = sealedAuctionAbiJson as Abi;
 
 export function useAuctions(stateFilter?: AuctionStateType) {
-  const { contract } = useContract({
-    abi: sealedAuctionAbi,
-    address: CONTRACT_ADDRESSES.SEALED_AUCTION,
-  });
-
   return useQuery({
     queryKey: ['auctions', stateFilter],
     queryFn: async (): Promise<AuctionItem[]> => {
-      if (!contract) return [];
+      const provider = getProvider();
+      const contract = new Contract(sealedAuctionAbi, CONTRACT_ADDRESSES.SEALED_AUCTION, provider);
 
-      const counter = (await contract.call('get_auction_count', [])) as bigint;
+      const counter = BigInt((await contract.call('get_auction_count')).toString());
       const items: AuctionItem[] = [];
 
       for (let i = 0n; i < counter; i++) {
-        const result = (await contract.call('get_auction', [i.toString()])) as [
+        const result = (await contract.call('get_auction', [i])) as [
           { variant: AuctionStateType },
           bigint,
           bigint,
@@ -29,7 +29,7 @@ export function useAuctions(stateFilter?: AuctionStateType) {
           string,
         ];
         const [stateVariant, commitEnd, revealEnd, , assetId] = result;
-        const bidCount = (await contract.call('get_bid_count', [i.toString()])) as bigint;
+        const bidCount = BigInt((await contract.call('get_bid_count', [i])).toString());
 
         const auctionState = Object.keys(stateVariant)[0] as AuctionStateType;
         if (stateFilter && auctionState !== stateFilter) continue;
@@ -46,7 +46,6 @@ export function useAuctions(stateFilter?: AuctionStateType) {
 
       return items;
     },
-    enabled: !!contract,
     refetchInterval: 10000,
   });
 }
@@ -55,25 +54,25 @@ export function useCommitBid() {
   const { account } = useAccount();
   const { saveBidSecret, addPendingTx, removePendingTx } = useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
-  const { contract } = useContract({
-    abi: sealedAuctionAbi,
-    address: CONTRACT_ADDRESSES.SEALED_AUCTION,
-  });
 
   return useMutation({
     mutationFn: async ({ auctionId, amount }: { auctionId: bigint; amount: bigint }) => {
-      if (!account || !contract) throw new Error('Wallet not connected');
+      if (!account) throw new Error('Wallet not connected');
+
+      const provider = getProvider();
+      const contract = new Contract(sealedAuctionAbi, CONTRACT_ADDRESSES.SEALED_AUCTION, provider);
 
       const secret = generateSecret();
       const commitment = hashBidCommitment(amount, secret);
 
-      const [, , , , assetId] = (await contract.call('get_auction', [auctionId.toString()])) as [
+      const auctionResult = (await contract.call('get_auction', [auctionId])) as [
         unknown,
         bigint,
         bigint,
         string,
         string,
       ];
+      const assetId = auctionResult[4];
 
       const approveCall = {
         contractAddress: bigIntToHex(BigInt(assetId)),
@@ -87,8 +86,8 @@ export function useCommitBid() {
         calldata: [auctionId.toString(), bigIntToHex(commitment)],
       };
 
-      const result = await sendAsync([approveCall, commitCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Commit Bid', timestamp: Date.now() });
+      const txResult = await sendAsync([approveCall, commitCall]);
+      addPendingTx({ hash: txResult.transaction_hash as HexString, description: 'Commit Bid', timestamp: Date.now() });
 
       saveBidSecret({
         auctionId,
@@ -97,8 +96,8 @@ export function useCommitBid() {
         commitment: bigIntToHex(commitment),
       });
 
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+      removePendingTx(txResult.transaction_hash as HexString);
+      return txResult;
     },
   });
 }

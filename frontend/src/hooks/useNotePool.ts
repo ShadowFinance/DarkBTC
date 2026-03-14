@@ -1,15 +1,18 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useAccount, useContract, useSendTransaction } from '@starknet-react/core';
+import { useAccount, useSendTransaction } from '@starknet-react/core';
+import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashNoteCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
+import { getProvider } from '../lib/starknet';
 import type { HexString } from '../types';
-import notePoolAbi from '../../abis/note_pool.json';
+import notePoolAbiJson from '../abis/note_pool.json';
+
+const notePoolAbi = notePoolAbiJson as Abi;
 
 interface DepositParams {
   asset: HexString;
   amount: bigint;
-  assetDecimals: number;
 }
 
 interface WithdrawParams {
@@ -25,7 +28,7 @@ export function useDeposit() {
   const { sendAsync } = useSendTransaction({});
 
   return useMutation({
-    mutationFn: async ({ asset, amount, assetDecimals }: DepositParams) => {
+    mutationFn: async ({ asset, amount }: DepositParams) => {
       if (!account) throw new Error('Wallet not connected');
 
       const secret = generateSecret();
@@ -116,16 +119,15 @@ export function useWithdraw() {
 }
 
 export function usePoolBalance(asset: HexString) {
-  const { contract } = useContract({ abi: notePoolAbi, address: CONTRACT_ADDRESSES.NOTE_POOL });
-
   return useQuery({
     queryKey: ['pool_balance', asset],
     queryFn: async (): Promise<bigint> => {
-      if (!contract) return 0n;
-      const result = (await contract.call('get_pool_balance', [asset])) as bigint;
-      return result;
+      const provider = getProvider();
+      const contract = new Contract(notePoolAbi, CONTRACT_ADDRESSES.NOTE_POOL, provider);
+      const result = await contract.call('get_pool_balance', [asset]);
+      return BigInt(result.toString());
     },
-    enabled: !!contract && !!asset,
+    enabled: !!asset,
     refetchInterval: 15000,
   });
 }

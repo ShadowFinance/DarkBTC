@@ -9,7 +9,7 @@ import TokenInput from '../shared/TokenInput';
 export default function OrderPanel() {
   const [side, setSide] = React.useState<'Buy' | 'Sell'>('Buy');
   const [assetToken, setAssetToken] = React.useState<Token>(TOKENS[0]);
-  const [collateralToken, setCollateralToken] = React.useState<Token>(TOKENS[1]);
+  const collateralToken = TOKENS[1];
   const [amount, setAmount] = React.useState('');
   const [price, setPrice] = React.useState('');
 

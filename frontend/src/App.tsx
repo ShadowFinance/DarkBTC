@@ -1,8 +1,7 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StarknetProvider } from '@starknet-react/core';
-import { mainnet, sepolia } from '@starknet-react/chains';
+import { StarknetConfig, jsonRpcProvider } from '@starknet-react/core';
+import { sepolia } from '@starknet-react/chains';
 import { InjectedConnector } from 'starknetkit/injected';
 import { WebWalletConnector } from 'starknetkit/webwallet';
 import Layout from './components/layout/Layout';
@@ -11,7 +10,6 @@ import AuctionPage from './pages/AuctionPage';
 import OrderbookPage from './pages/OrderbookPage';
 import PortfolioPage from './pages/PortfolioPage';
 import { RPC_URL } from './constants/contracts';
-import { RpcProvider } from 'starknet';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,14 +26,12 @@ const connectors = [
   new WebWalletConnector({ url: 'https://web.argent.xyz' }),
 ];
 
-function provider() {
-  return new RpcProvider({ nodeUrl: RPC_URL });
-}
+const rpcProvider = jsonRpcProvider({ rpc: () => ({ nodeUrl: RPC_URL }) });
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <StarknetProvider chains={[sepolia, mainnet]} connectors={connectors} provider={provider}>
+      <StarknetConfig chains={[sepolia]} connectors={connectors} provider={rpcProvider}>
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
@@ -46,7 +42,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      </StarknetProvider>
+      </StarknetConfig>
     </QueryClientProvider>
   );
 }
