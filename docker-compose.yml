@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  # Local Starknet devnet for development
+  devnet:
+    image: shardlabs/starknet-devnet-rs:latest
+    ports:
+      - "5050:5050"
+    command:
+      - "--seed=0"
+      - "--port=5050"
+      - "--accounts=10"
+      - "--initial-balance=1000000000000000000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/is_alive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Minimal indexer for Merkle proofs (placeholder — implement separately)
+  indexer:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./indexer:/app
+    ports:
+      - "3001:3001"
+    command: ["sh", "-c", "echo 'Indexer placeholder' && sleep infinity"]
+    depends_on:
+      devnet:
+        condition: service_healthy
+
+  # Frontend dev server
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_NOTE_POOL_ADDRESS=${VITE_NOTE_POOL_ADDRESS:-0x0}
+      - VITE_SHIELDED_SWAP_ADDRESS=${VITE_SHIELDED_SWAP_ADDRESS:-0x0}
+      - VITE_SEALED_AUCTION_ADDRESS=${VITE_SEALED_AUCTION_ADDRESS:-0x0}
+      - VITE_DARK_ORDERBOOK_ADDRESS=${VITE_DARK_ORDERBOOK_ADDRESS:-0x0}
+      - VITE_CHAIN_ID=SN_SEPOLIA
+      - VITE_RPC_URL=http://devnet:5050
+      - VITE_WBTC_ADDRESS=${VITE_WBTC_ADDRESS:-0x0}
+      - VITE_USDC_ADDRESS=${VITE_USDC_ADDRESS:-0x0}
+      - VITE_INDEXER_URL=http://indexer:3001
+    command: ["sh", "-c", "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"]
+    depends_on:
+      - devnet
