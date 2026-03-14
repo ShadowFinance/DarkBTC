@@ -5,10 +5,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: sepolia
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
