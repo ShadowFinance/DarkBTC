@@ -1,52 +1,55 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAccount, useSendTransaction } from '@starknet-react/core';
-import { Contract, type Abi } from 'starknet';
-import { CONTRACT_ADDRESSES } from '../constants/contracts';
+import { AUCTION_DEPOSIT_TOKEN, CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashBidCommitment, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { getProvider } from '../lib/starknet';
 import type { HexString, AuctionItem, AuctionStateType } from '../types';
-import sealedAuctionAbiJson from '../abis/sealed_auction.json';
+import { isConfiguredAddress } from '../lib/starknet';
 
-const sealedAuctionAbi = sealedAuctionAbiJson as Abi;
+interface IndexedAuction {
+  id: string;
+  assetId: HexString;
+  state: AuctionStateType;
+  commitEnd: number;
+  revealEnd: number;
+  createdAt?: number;
+  reservePrice?: string;
+  currentWinner?: HexString | null;
+  currentBid?: string;
+  bidCount: string;
+}
 
 export function useAuctions(stateFilter?: AuctionStateType) {
   return useQuery({
     queryKey: ['auctions', stateFilter],
     queryFn: async (): Promise<AuctionItem[]> => {
-      const provider = getProvider();
-      const contract = new Contract(sealedAuctionAbi, CONTRACT_ADDRESSES.SEALED_AUCTION, provider);
-
-      const counter = BigInt((await contract.call('get_auction_count')).toString());
-      const items: AuctionItem[] = [];
-
-      for (let i = 0n; i < counter; i++) {
-        const result = (await contract.call('get_auction', [i])) as [
-          { variant: AuctionStateType },
-          bigint,
-          bigint,
-          string,
-          string,
-        ];
-        const [stateVariant, commitEnd, revealEnd, , assetId] = result;
-        const bidCount = BigInt((await contract.call('get_bid_count', [i])).toString());
-
-        const auctionState = Object.keys(stateVariant)[0] as AuctionStateType;
-        if (stateFilter && auctionState !== stateFilter) continue;
-
-        items.push({
-          id: i,
-          assetId: bigIntToHex(BigInt(assetId)),
-          state: auctionState,
-          commitEnd: Number(commitEnd),
-          revealEnd: Number(revealEnd),
-          bidCount,
-        });
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.SEALED_AUCTION)) {
+        return [];
       }
 
-      return items;
+      const response = await fetch(`${INDEXER_URL}/auctions`);
+      if (!response.ok) {
+        throw new Error('Failed to load auctions');
+      }
+
+      const auctions = (await response.json()) as IndexedAuction[];
+      return auctions
+        .map((auction) => ({
+          id: BigInt(auction.id),
+          assetId: auction.assetId,
+          state: auction.state,
+          commitEnd: auction.commitEnd,
+          revealEnd: auction.revealEnd,
+          createdAt: auction.createdAt,
+          reservePrice: auction.reservePrice ? BigInt(auction.reservePrice) : undefined,
+          currentWinner: auction.currentWinner ?? undefined,
+          currentBid: auction.currentBid ? BigInt(auction.currentBid) : undefined,
+          bidCount: BigInt(auction.bidCount),
+        }))
+        .filter((auction) => !stateFilter || auction.state === stateFilter);
     },
-    refetchInterval: 10000,
+    enabled: isConfiguredAddress(CONTRACT_ADDRESSES.SEALED_AUCTION),
+    refetchInterval: 15000,
   });
 }
 
@@ -56,28 +59,27 @@ export function useCommitBid() {
   const { sendAsync } = useSendTransaction({});
 
   return useMutation({
-    mutationFn: async ({ auctionId, amount }: { auctionId: bigint; amount: bigint }) => {
+    mutationFn: async ({
+      auctionId,
+      amount,
+      reservePrice,
+    }: {
+      auctionId: bigint;
+      amount: bigint;
+      reservePrice: bigint;
+    }) => {
       if (!account) throw new Error('Wallet not connected');
-
-      const provider = getProvider();
-      const contract = new Contract(sealedAuctionAbi, CONTRACT_ADDRESSES.SEALED_AUCTION, provider);
+      if (!isConfiguredAddress(AUCTION_DEPOSIT_TOKEN)) {
+        throw new Error('Auction deposit token is not configured');
+      }
 
       const secret = generateSecret();
       const commitment = hashBidCommitment(amount, secret);
 
-      const auctionResult = (await contract.call('get_auction', [auctionId])) as [
-        unknown,
-        bigint,
-        bigint,
-        string,
-        string,
-      ];
-      const assetId = auctionResult[4];
-
       const approveCall = {
-        contractAddress: bigIntToHex(BigInt(assetId)),
+        contractAddress: AUCTION_DEPOSIT_TOKEN,
         entrypoint: 'approve',
-        calldata: [CONTRACT_ADDRESSES.SEALED_AUCTION, amount.toString(), '0'],
+        calldata: [CONTRACT_ADDRESSES.SEALED_AUCTION, reservePrice.toString(), '0'],
       };
 
       const commitCall = {

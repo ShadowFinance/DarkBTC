@@ -1,14 +1,10 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAccount, useSendTransaction } from '@starknet-react/core';
-import { Contract, type Abi } from 'starknet';
-import { CONTRACT_ADDRESSES } from '../constants/contracts';
+import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashOrderCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { getProvider } from '../lib/starknet';
-import type { HexString } from '../types';
-import darkOrderbookAbiJson from '../abis/dark_orderbook.json';
-
-const darkOrderbookAbi = darkOrderbookAbiJson as Abi;
+import { isConfiguredAddress } from '../lib/starknet';
+import type { HexString, OrderFill } from '../types';
 
 interface SubmitOrderParams {
   side: 'Buy' | 'Sell';
@@ -34,6 +30,9 @@ export function useSubmitOrder() {
       collateralAsset,
     }: SubmitOrderParams) => {
       if (!account) throw new Error('Wallet not connected');
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.DARK_ORDERBOOK)) {
+        throw new Error('Dark orderbook is not configured');
+      }
 
       const secret = generateSecret();
       const sideVal: 0n | 1n = side === 'Buy' ? 0n : 1n;
@@ -86,6 +85,9 @@ export function useCancelOrder() {
   return useMutation({
     mutationFn: async ({ orderId }: { orderId: HexString }) => {
       if (!account) throw new Error('Wallet not connected');
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.DARK_ORDERBOOK)) {
+        throw new Error('Dark orderbook is not configured');
+      }
 
       const order = myOrders.find((o) => o.orderId === orderId);
       if (!order) throw new Error('Order not found');
@@ -110,12 +112,33 @@ export function useCancelOrder() {
 export function useRecentFills() {
   return useQuery({
     queryKey: ['recent_fills'],
-    queryFn: async (): Promise<HexString[]> => {
-      const provider = getProvider();
-      const contract = new Contract(darkOrderbookAbi, CONTRACT_ADDRESSES.DARK_ORDERBOOK, provider);
-      const result = (await contract.call('get_recent_fills', [50])) as bigint[];
-      return result.map((f) => bigIntToHex(f));
+    queryFn: async (): Promise<OrderFill[]> => {
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.DARK_ORDERBOOK)) {
+        return [];
+      }
+
+      const response = await fetch(`${INDEXER_URL}/orderbook/fills?limit=50`);
+      if (!response.ok) {
+        throw new Error('Failed to load recent fills');
+      }
+
+      const fills = (await response.json()) as Array<{
+        orderId: HexString;
+        fillProof: HexString;
+        timestamp: number;
+        blockNumber?: number;
+        transactionHash?: HexString;
+      }>;
+
+      return fills.map((fill) => ({
+        orderId: fill.orderId,
+        fillProof: fill.fillProof,
+        timestamp: fill.timestamp,
+        blockNumber: fill.blockNumber,
+        transactionHash: fill.transactionHash,
+      }));
     },
+    enabled: isConfiguredAddress(CONTRACT_ADDRESSES.DARK_ORDERBOOK),
     refetchInterval: 15000,
   });
 }

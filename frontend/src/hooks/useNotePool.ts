@@ -4,7 +4,7 @@ import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashNoteCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { getProvider } from '../lib/starknet';
+import { getProvider, isConfiguredAddress, parseU256 } from '../lib/starknet';
 import type { HexString } from '../types';
 import notePoolAbiJson from '../abis/note_pool.json';
 
@@ -30,6 +30,9 @@ export function useDeposit() {
   return useMutation({
     mutationFn: async ({ asset, amount }: DepositParams) => {
       if (!account) throw new Error('Wallet not connected');
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.NOTE_POOL)) {
+        throw new Error('Note pool is not configured');
+      }
 
       const secret = generateSecret();
       const nonce = BigInt(Date.now());
@@ -41,7 +44,7 @@ export function useDeposit() {
       const approveCall = {
         contractAddress: asset,
         entrypoint: 'approve',
-        calldata: [CONTRACT_ADDRESSES.NOTE_POOL, amount.toString()],
+        calldata: [CONTRACT_ADDRESSES.NOTE_POOL, amount.toString(), '0'],
       };
 
       const depositCall = {
@@ -90,6 +93,7 @@ export function useWithdraw() {
 
       // Fetch Merkle proof from indexer
       const proofRes = await fetch(`${INDEXER_URL}/proof/${commitment}`);
+      if (!proofRes.ok) throw new Error('Failed to fetch Merkle proof');
       const proofData = (await proofRes.json()) as { proof: string[]; indices: number; root: string };
 
       const withdrawCall = {
@@ -123,11 +127,18 @@ export function usePoolBalance(asset: HexString) {
     queryKey: ['pool_balance', asset],
     queryFn: async (): Promise<bigint> => {
       const provider = getProvider();
-      const contract = new Contract(notePoolAbi, CONTRACT_ADDRESSES.NOTE_POOL, provider);
-      const result = await contract.call('get_pool_balance', [asset]);
-      return BigInt(result.toString());
+      const contract = new Contract({
+        abi: notePoolAbi,
+        address: CONTRACT_ADDRESSES.NOTE_POOL,
+        providerOrAccount: provider,
+      });
+      const result = (await contract.call('get_pool_balance', [asset])) as {
+        low: bigint;
+        high: bigint;
+      };
+      return parseU256(result);
     },
-    enabled: !!asset,
+    enabled: isConfiguredAddress(CONTRACT_ADDRESSES.NOTE_POOL) && isConfiguredAddress(asset),
     refetchInterval: 15000,
   });
 }

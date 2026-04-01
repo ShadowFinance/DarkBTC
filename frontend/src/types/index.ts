@@ -19,7 +19,10 @@ export interface AuctionItem {
   state: AuctionStateType;
   commitEnd: number;
   revealEnd: number;
+  createdAt?: number;
+  reservePrice?: bigint;
   currentWinner?: HexString;
+  currentBid?: bigint;
   bidCount: bigint;
 }
 
@@ -64,4 +67,12 @@ export interface BidSecret {
   secret: HexString;
   amount: bigint;
   commitment: HexString;
+}
+
+export interface OrderFill {
+  orderId: HexString;
+  fillProof: HexString;
+  timestamp: number;
+  blockNumber?: number;
+  transactionHash?: HexString;
 }
