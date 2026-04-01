@@ -69,10 +69,12 @@ pub mod ShieldedSwap {
     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
-// 30 bps fee: amount_in * (10000 - 30) / 10000
-const FEE_BPS: u256 = 30_u256;
-const FEE_MULTIPLIER: u256 = 9970_u256; // 10000 - FEE_BPS
-const BPS_DENOMINATOR: u256 = 10000_u256;
+    // 30 bps fee: amount_in * (10000 - 30) / 10000
+    const FEE_BPS: u256 = 30_u256;
+    const FEE_MULTIPLIER: u256 = 9970_u256; // 10000 - FEE_BPS
+    const BPS_DENOMINATOR: u256 = 10000_u256;
+
+    #[storage]
     struct Storage {
         reserve_a: Map<(ContractAddress, ContractAddress), u256>,
         reserve_b: Map<(ContractAddress, ContractAddress), u256>,
@@ -326,4 +328,3 @@ const BPS_DENOMINATOR: u256 = 10000_u256;
         }
     }
 }
-

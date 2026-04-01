@@ -8,11 +8,11 @@ sierra = true
 casm = true
 
 [dependencies]
-starknet = ">=2.6.0"
-openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.14.0" }
+starknet = "2.11.4"
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", rev = "f1c15a30a44311166e0368081c5f79ab5a02c1d3" }
 
 [dev-dependencies]
-snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry", tag = "v0.24.0" }
+snforge_std = "0.44.0"
 
 [scripts]
 test = "snforge test"
