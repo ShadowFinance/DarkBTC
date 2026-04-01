@@ -1,0 +1,34 @@
+{
+  "network": "sepolia",
+  "rpcUrl": "https://api.cartridge.gg/x/starknet/sepolia",
+  "blockNumber": 8252303,
+  "contracts": {
+    "NotePool": {
+      "address": "0x5627a60f4511c403babe3092170d0208627cd4bc5a914fd6cd42aa705fb9a52",
+      "classHash": "0x6812fd3d438facbe08785f4a93f2d3d669b18a5b1e85df3bbe114d0fc394"
+    },
+    "ShieldedSwap": {
+      "address": "0xf212bfaeef11e9b6354fdb60c0d2b8598f71eb14605ee113ef9bc85d678cea",
+      "classHash": "0x7913b043e2c5d689de863d6d6c75ea316426d8d534c0c097cfc271055578e72"
+    },
+    "SealedAuction": {
+      "address": "0x5b5afb9515f30cec544001ff1be117560c5050d0178d7c21f578ccf7f2667ff",
+      "classHash": "0x202495d12ffbba008f4f04d0bcc37ba6ec3b9826cbe74ee92be62888d97eff7"
+    },
+    "DarkOrderbook": {
+      "address": "0x4c6698f7279fad2e0722483e31333c38599d68f7db4e5de25a8013ce55ebe3a",
+      "classHash": "0x1aee98173823bf504c04818e8fd7a5d4c512b2ae2a38854d66a918d863d7bb5"
+    }
+  },
+  "tokens": {
+    "WBTC": {
+      "address": "0x30da440e0911576918df9523e84a45ae2052589996612f97d2a5724444c3a51",
+      "decimals": 18
+    },
+    "USDC": {
+      "address": "0x5752cd65bc0d110b8b906883a7c6ec4c919cb5791907a6e978d12d38f15b5f6",
+      "decimals": 18
+    }
+  },
+  "auctionDepositToken": "0x5752cd65bc0d110b8b906883a7c6ec4c919cb5791907a6e978d12d38f15b5f6"
+}
