@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ArrowLeftRight, Gavel, BookOpen, LayoutDashboard, X } from 'lucide-react';
+import { ArrowLeftRight, Gavel, BookOpen, LayoutDashboard, FlaskConical, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Header from './Header';
 
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/auction', label: 'Auction', icon: Gavel },
   { to: '/orderbook', label: 'Orderbook', icon: BookOpen },
   { to: '/portfolio', label: 'Portfolio', icon: LayoutDashboard },
+  { to: '/faucet', label: 'Faucet', icon: FlaskConical },
 ];
 
 export default function Layout() {
@@ -64,7 +65,7 @@ export default function Layout() {
         </nav>
 
         <div className="p-4 border-t border-gray-800">
-          <p className="text-xs text-gray-600">v0.1.0 — Sepolia Testnet</p>
+          <p className="text-xs text-gray-600">Starknet Sepolia</p>
         </div>
       </aside>
 

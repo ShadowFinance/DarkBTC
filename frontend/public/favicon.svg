@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="20" y1="14" x2="108" y2="114" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827" />
+      <stop offset="1" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="coin" x1="38" y1="28" x2="86" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24" />
+      <stop offset="1" stop-color="#F97316" />
+    </linearGradient>
+    <linearGradient id="glow" x1="70" y1="38" x2="104" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity=".85" />
+      <stop offset="1" stop-color="#0F172A" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)" />
+  <circle cx="50" cy="60" r="26" fill="url(#coin)" />
+  <path d="M45 39V81M56 39V81M38 48H61C66.5 48 71 52.5 71 58C71 63.5 66.5 68 61 68H38M38 68H63.5C69.8513 68 75 73.1487 75 79.5C75 85.8513 69.8513 91 63.5 91H38" stroke="#FFF7ED" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M84 40C91.1797 43.7755 96 51.3082 96 60C96 72.1503 86.1503 82 74 82C72.5966 82 71.2239 81.8685 69.8934 81.6169" stroke="url(#glow)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M91 72L74 94L61 83" stroke="#7DD3FC" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

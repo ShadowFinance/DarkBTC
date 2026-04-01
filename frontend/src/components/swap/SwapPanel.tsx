@@ -5,13 +5,16 @@ import TokenInput from '../shared/TokenInput';
 import { useSwapQuote, useExecuteSwap } from '../../hooks/useShieldedSwap';
 import { TOKENS } from '../../constants/tokens';
 import type { Token } from '../../types';
-import { parseTokenAmount, formatTokenAmount } from '../../lib/starknet';
+import { isConfiguredAddress, parseTokenAmount, formatTokenAmount } from '../../lib/starknet';
 
 const SLIPPAGE_PRESETS = ['0.5', '1.0', '2.0'];
 
 export default function SwapPanel() {
-  const [tokenIn, setTokenIn] = React.useState<Token>(TOKENS[0]);
-  const [tokenOut, setTokenOut] = React.useState<Token>(TOKENS[1]);
+  const swapTokens = TOKENS.filter((token) => isConfiguredAddress(token.address));
+  const defaultInputToken = swapTokens[0] ?? TOKENS[0];
+  const defaultOutputToken = swapTokens[1] ?? TOKENS[1];
+  const [tokenIn, setTokenIn] = React.useState<Token>(defaultInputToken);
+  const [tokenOut, setTokenOut] = React.useState<Token>(defaultOutputToken);
   const [amountIn, setAmountIn] = React.useState('');
   const [slippage, setSlippage] = React.useState('0.5');
   const [customSlippage, setCustomSlippage] = React.useState('');
@@ -56,6 +59,7 @@ export default function SwapPanel() {
       assetIn: tokenIn.address,
       assetOut: tokenOut.address,
       amountIn: amountInBigInt,
+      expectedAmountOut: quote.outputAmount,
       minAmountOut: minOut,
       deadline,
     });
@@ -72,6 +76,7 @@ export default function SwapPanel() {
         amount={amountIn}
         onAmountChange={setAmountIn}
         onTokenChange={setTokenIn}
+        tokens={swapTokens}
         disabled={swapPending}
       />
 
@@ -90,6 +95,7 @@ export default function SwapPanel() {
         amount={quote ? formatTokenAmount(quote.outputAmount, tokenOut.decimals) : ''}
         onAmountChange={() => {}}
         onTokenChange={setTokenOut}
+        tokens={swapTokens}
         disabled
       />
 
