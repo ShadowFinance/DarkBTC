@@ -19,6 +19,10 @@ pub trait ISealedAuction<TContractState> {
         self: @TContractState, auction_id: u64,
     ) -> (AuctionState, u64, u64, ContractAddress, felt252);
     fn get_bid_count(self: @TContractState, auction_id: u64) -> u64;
+    fn get_auction_count(self: @TContractState) -> u64;
+    fn get_deposit_token(self: @TContractState) -> ContractAddress;
+    fn get_auction_reserve_price(self: @TContractState, auction_id: u64) -> u256;
+    fn get_highest_bid(self: @TContractState, auction_id: u64) -> (ContractAddress, u256);
     fn has_committed(
         self: @TContractState, auction_id: u64, bidder: ContractAddress,
     ) -> bool;
@@ -283,6 +287,25 @@ pub mod SealedAuction {
 
         fn get_bid_count(self: @ContractState, auction_id: u64) -> u64 {
             self.bid_counts.read(auction_id)
+        }
+
+        fn get_auction_count(self: @ContractState) -> u64 {
+            self.auction_counter.read()
+        }
+
+        fn get_deposit_token(self: @ContractState) -> ContractAddress {
+            self.deposit_token.read()
+        }
+
+        fn get_auction_reserve_price(self: @ContractState, auction_id: u64) -> u256 {
+            self.auction_reserve_price.read(auction_id)
+        }
+
+        fn get_highest_bid(self: @ContractState, auction_id: u64) -> (ContractAddress, u256) {
+            (
+                self.highest_bid_bidder.read(auction_id),
+                self.highest_bid_amount.read(auction_id),
+            )
         }
 
         fn has_committed(
