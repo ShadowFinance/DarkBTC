@@ -4,6 +4,7 @@ pub mod note_pool;
 pub mod shielded_swap;
 pub mod sealed_auction;
 pub mod dark_orderbook;
+pub mod mock_erc20;
 pub mod utils {
     pub mod poseidon;
     pub mod merkle;
