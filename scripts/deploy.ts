@@ -8,7 +8,7 @@ dotenv.config();
 async function main() {
   const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
   const address = process.env.DEPLOYER_ADDRESS;
-  const rpcUrl = process.env.RPC_URL ?? 'https://starknet-sepolia.public.blastapi.io/rpc/v0_7';
+  const rpcUrl = process.env.RPC_URL ?? 'https://api.cartridge.gg/x/starknet/sepolia';
   const wbtcAddress = process.env.WBTC_ADDRESS ?? '0x0';
   const usdcAddress = process.env.USDC_ADDRESS ?? '0x0';
 
@@ -17,7 +17,11 @@ async function main() {
   }
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(provider, address, privateKey);
+  const account = new Account({
+    provider,
+    address,
+    signer: privateKey,
+  });
 
   const targetDir = path.join(__dirname, '../contracts/target/dev');
 
@@ -98,7 +102,11 @@ async function main() {
   // 5. Add supported assets to NotePool
   const { Contract } = await import('starknet');
   const notePoolAbi = JSON.parse(fs.readFileSync(path.join(__dirname, '../abis/note_pool.json'), 'utf-8'));
-  const notePoolContract = new Contract(notePoolAbi, notePoolAddress, account);
+  const notePoolContract = new Contract({
+    abi: notePoolAbi,
+    address: notePoolAddress,
+    providerOrAccount: account,
+  });
 
   console.log('Adding WBTC as supported asset...');
   const addWbtcResult = await notePoolContract.add_supported_asset(wbtcAddress);

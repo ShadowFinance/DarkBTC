@@ -8,7 +8,7 @@ dotenv.config();
 async function main() {
   const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
   const address = process.env.DEPLOYER_ADDRESS;
-  const rpcUrl = process.env.RPC_URL ?? 'https://starknet-sepolia.public.blastapi.io/rpc/v0_7';
+  const rpcUrl = process.env.RPC_URL ?? 'https://api.cartridge.gg/x/starknet/sepolia';
 
   if (!privateKey || !address) {
     throw new Error('DEPLOYER_PRIVATE_KEY and DEPLOYER_ADDRESS must be set in .env');
@@ -25,7 +25,11 @@ async function main() {
   };
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(provider, address, privateKey);
+  const account = new Account({
+    provider,
+    address,
+    signer: privateKey,
+  });
 
   const notePoolAddress = deployments.contracts.NotePool.address;
   const auctionAddress = deployments.contracts.SealedAuction.address;
@@ -39,8 +43,16 @@ async function main() {
     fs.readFileSync(path.join(__dirname, '../abis/sealed_auction.json'), 'utf-8'),
   );
 
-  const notePool = new Contract(notePoolAbi, notePoolAddress, account);
-  const auction = new Contract(auctionAbi, auctionAddress, account);
+  const notePool = new Contract({
+    abi: notePoolAbi,
+    address: notePoolAddress,
+    providerOrAccount: account,
+  });
+  const auction = new Contract({
+    abi: auctionAbi,
+    address: auctionAddress,
+    providerOrAccount: account,
+  });
 
   // Mint some test WBTC to deployer and deposit into pool
   console.log('Seeding NotePool with test deposits...');
