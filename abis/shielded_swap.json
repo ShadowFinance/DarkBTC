@@ -1,57 +1,437 @@
 [
   {
-    "type": "function",
-    "name": "swap",
-    "inputs": [
-      { "name": "input_nullifier", "type": "core::felt252" },
-      { "name": "input_commitment", "type": "core::felt252" },
-      { "name": "merkle_root", "type": "core::felt252" },
-      { "name": "proof", "type": "core::array::Array::<core::felt252>" },
-      { "name": "indices", "type": "core::integer::u32" },
-      { "name": "asset_in", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "asset_out", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "amount_in", "type": "core::integer::u256" },
-      { "name": "min_amount_out", "type": "core::integer::u256" },
-      { "name": "output_commitment", "type": "core::felt252" },
-      { "name": "encrypted_output", "type": "core::felt252" },
-      { "name": "deadline", "type": "core::integer::u64" }
-    ],
-    "outputs": [{ "type": "darkbtc::types::SwapQuote" }],
-    "state_mutability": "external"
+    "type": "impl",
+    "name": "ShieldedSwapImpl",
+    "interface_name": "darkbtc::shielded_swap::IShieldedSwap"
   },
   {
-    "type": "function",
-    "name": "get_reserves",
-    "inputs": [
-      { "name": "asset_a", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "asset_b", "type": "core::starknet::contract_address::ContractAddress" }
-    ],
-    "outputs": [{ "type": "(core::integer::u256, core::integer::u256)" }],
-    "state_mutability": "view"
+    "type": "struct",
+    "name": "core::integer::u256",
+    "members": [
+      {
+        "name": "low",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "high",
+        "type": "core::integer::u128"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "get_swap_quote",
-    "inputs": [
-      { "name": "asset_in", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "asset_out", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "amount_in", "type": "core::integer::u256" }
-    ],
-    "outputs": [{ "type": "darkbtc::types::SwapQuote" }],
-    "state_mutability": "view"
+    "type": "struct",
+    "name": "darkbtc::types::SwapQuote",
+    "members": [
+      {
+        "name": "input_amount",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "output_amount",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "price_impact_bps",
+        "type": "core::integer::u16"
+      },
+      {
+        "name": "fee_bps",
+        "type": "core::integer::u16"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "add_shielded_liquidity",
+    "type": "interface",
+    "name": "darkbtc::shielded_swap::IShieldedSwap",
+    "items": [
+      {
+        "type": "function",
+        "name": "add_shielded_liquidity",
+        "inputs": [
+          {
+            "name": "asset_a",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_b",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount_a",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "amount_b",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "commitment_a",
+            "type": "core::felt252"
+          },
+          {
+            "name": "commitment_b",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::felt252"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "remove_shielded_liquidity",
+        "inputs": [
+          {
+            "name": "lp_nullifier",
+            "type": "core::felt252"
+          },
+          {
+            "name": "lp_commitment",
+            "type": "core::felt252"
+          },
+          {
+            "name": "merkle_root",
+            "type": "core::felt252"
+          },
+          {
+            "name": "proof",
+            "type": "core::array::Array::<core::felt252>"
+          },
+          {
+            "name": "indices",
+            "type": "core::integer::u32"
+          },
+          {
+            "name": "min_amount_a",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "min_amount_b",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "out_commitment_a",
+            "type": "core::felt252"
+          },
+          {
+            "name": "out_commitment_b",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "swap",
+        "inputs": [
+          {
+            "name": "input_nullifier",
+            "type": "core::felt252"
+          },
+          {
+            "name": "input_commitment",
+            "type": "core::felt252"
+          },
+          {
+            "name": "merkle_root",
+            "type": "core::felt252"
+          },
+          {
+            "name": "proof",
+            "type": "core::array::Array::<core::felt252>"
+          },
+          {
+            "name": "indices",
+            "type": "core::integer::u32"
+          },
+          {
+            "name": "asset_in",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_out",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount_in",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "min_amount_out",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "output_commitment",
+            "type": "core::felt252"
+          },
+          {
+            "name": "encrypted_output",
+            "type": "core::felt252"
+          },
+          {
+            "name": "deadline",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "darkbtc::types::SwapQuote"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_reserves",
+        "inputs": [
+          {
+            "name": "asset_a",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_b",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "(core::integer::u256, core::integer::u256)"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_swap_quote",
+        "inputs": [
+          {
+            "name": "asset_in",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_out",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount_in",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "darkbtc::types::SwapQuote"
+          }
+        ],
+        "state_mutability": "view"
+      }
+    ]
+  },
+  {
+    "type": "impl",
+    "name": "OwnableImpl",
+    "interface_name": "openzeppelin_access::ownable::interface::IOwnable"
+  },
+  {
+    "type": "interface",
+    "name": "openzeppelin_access::ownable::interface::IOwnable",
+    "items": [
+      {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "transfer_ownership",
+        "inputs": [
+          {
+            "name": "new_owner",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "renounce_ownership",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      }
+    ]
+  },
+  {
+    "type": "constructor",
+    "name": "constructor",
     "inputs": [
-      { "name": "asset_a", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "asset_b", "type": "core::starknet::contract_address::ContractAddress" },
-      { "name": "amount_a", "type": "core::integer::u256" },
-      { "name": "amount_b", "type": "core::integer::u256" },
-      { "name": "commitment_a", "type": "core::felt252" },
-      { "name": "commitment_b", "type": "core::felt252" }
-    ],
-    "outputs": [{ "type": "core::felt252" }],
-    "state_mutability": "external"
+      {
+        "name": "note_pool_address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "owner",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "darkbtc::shielded_swap::ShieldedSwap::SwapExecuted",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "input_commitment",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "output_commitment",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "asset_in",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "data"
+      },
+      {
+        "name": "asset_out",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "data"
+      },
+      {
+        "name": "timestamp",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "darkbtc::shielded_swap::ShieldedSwap::LiquidityAdded",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "commitment_a",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "commitment_b",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "timestamp",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "darkbtc::shielded_swap::ShieldedSwap::LiquidityRemoved",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "lp_nullifier",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "timestamp",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "OwnershipTransferred",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+        "kind": "nested"
+      },
+      {
+        "name": "OwnershipTransferStarted",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+        "kind": "nested"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "darkbtc::shielded_swap::ShieldedSwap::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "SwapExecuted",
+        "type": "darkbtc::shielded_swap::ShieldedSwap::SwapExecuted",
+        "kind": "nested"
+      },
+      {
+        "name": "LiquidityAdded",
+        "type": "darkbtc::shielded_swap::ShieldedSwap::LiquidityAdded",
+        "kind": "nested"
+      },
+      {
+        "name": "LiquidityRemoved",
+        "type": "darkbtc::shielded_swap::ShieldedSwap::LiquidityRemoved",
+        "kind": "nested"
+      },
+      {
+        "name": "OwnableEvent",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+        "kind": "flat"
+      }
+    ]
   }
 ]

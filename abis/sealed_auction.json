@@ -1,87 +1,523 @@
 [
   {
-    "type": "function",
-    "name": "create_auction",
+    "type": "impl",
+    "name": "SealedAuctionImpl",
+    "interface_name": "darkbtc::sealed_auction::ISealedAuction"
+  },
+  {
+    "type": "struct",
+    "name": "core::integer::u256",
+    "members": [
+      {
+        "name": "low",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "high",
+        "type": "core::integer::u128"
+      }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "darkbtc::types::AuctionState",
+    "variants": [
+      {
+        "name": "Pending",
+        "type": "()"
+      },
+      {
+        "name": "CommitPhase",
+        "type": "()"
+      },
+      {
+        "name": "RevealPhase",
+        "type": "()"
+      },
+      {
+        "name": "Settled",
+        "type": "()"
+      },
+      {
+        "name": "Cancelled",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::bool",
+    "variants": [
+      {
+        "name": "False",
+        "type": "()"
+      },
+      {
+        "name": "True",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "interface",
+    "name": "darkbtc::sealed_auction::ISealedAuction",
+    "items": [
+      {
+        "type": "function",
+        "name": "create_auction",
+        "inputs": [
+          {
+            "name": "asset_id",
+            "type": "core::felt252"
+          },
+          {
+            "name": "reserve_price",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "commit_duration_secs",
+            "type": "core::integer::u64"
+          },
+          {
+            "name": "reveal_duration_secs",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u64"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "commit_bid",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          },
+          {
+            "name": "commitment",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "reveal_bid",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "secret",
+            "type": "core::felt252"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "advance_phase",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "settle_auction",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "cancel_auction",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_auction",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "(darkbtc::types::AuctionState, core::integer::u64, core::integer::u64, core::starknet::contract_address::ContractAddress, core::felt252)"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_bid_count",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u64"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_auction_count",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::integer::u64"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_deposit_token",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_auction_reserve_price",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u256"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_highest_bid",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "(core::starknet::contract_address::ContractAddress, core::integer::u256)"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "has_committed",
+        "inputs": [
+          {
+            "name": "auction_id",
+            "type": "core::integer::u64"
+          },
+          {
+            "name": "bidder",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      }
+    ]
+  },
+  {
+    "type": "impl",
+    "name": "OwnableImpl",
+    "interface_name": "openzeppelin_access::ownable::interface::IOwnable"
+  },
+  {
+    "type": "interface",
+    "name": "openzeppelin_access::ownable::interface::IOwnable",
+    "items": [
+      {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "transfer_ownership",
+        "inputs": [
+          {
+            "name": "new_owner",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "renounce_ownership",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      }
+    ]
+  },
+  {
+    "type": "constructor",
+    "name": "constructor",
     "inputs": [
-      { "name": "asset_id", "type": "core::felt252" },
-      { "name": "reserve_price", "type": "core::integer::u256" },
-      { "name": "commit_duration_secs", "type": "core::integer::u64" },
-      { "name": "reveal_duration_secs", "type": "core::integer::u64" }
-    ],
-    "outputs": [{ "type": "core::integer::u64" }],
-    "state_mutability": "external"
+      {
+        "name": "owner",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "deposit_token",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "commit_bid",
-    "inputs": [
-      { "name": "auction_id", "type": "core::integer::u64" },
-      { "name": "commitment", "type": "core::felt252" }
-    ],
-    "outputs": [],
-    "state_mutability": "external"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::AuctionCreated",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      },
+      {
+        "name": "asset_id",
+        "type": "core::felt252",
+        "kind": "data"
+      },
+      {
+        "name": "timestamp",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "reveal_bid",
-    "inputs": [
-      { "name": "auction_id", "type": "core::integer::u64" },
-      { "name": "amount", "type": "core::integer::u256" },
-      { "name": "secret", "type": "core::felt252" }
-    ],
-    "outputs": [],
-    "state_mutability": "external"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::BidCommitted",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      },
+      {
+        "name": "commitment",
+        "type": "core::felt252",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "advance_phase",
-    "inputs": [{ "name": "auction_id", "type": "core::integer::u64" }],
-    "outputs": [],
-    "state_mutability": "external"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::BidRevealed",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "settle_auction",
-    "inputs": [{ "name": "auction_id", "type": "core::integer::u64" }],
-    "outputs": [],
-    "state_mutability": "external"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::AuctionSettled",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      },
+      {
+        "name": "winner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "data"
+      },
+      {
+        "name": "final_price",
+        "type": "core::integer::u256",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "cancel_auction",
-    "inputs": [{ "name": "auction_id", "type": "core::integer::u64" }],
-    "outputs": [],
-    "state_mutability": "external"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::AuctionCancelled",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "get_auction",
-    "inputs": [{ "name": "auction_id", "type": "core::integer::u64" }],
-    "outputs": [{ "type": "(darkbtc::types::AuctionState, core::integer::u64, core::integer::u64, core::starknet::contract_address::ContractAddress, core::felt252)" }],
-    "state_mutability": "view"
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::PhaseAdvanced",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "auction_id",
+        "type": "core::integer::u64",
+        "kind": "data"
+      },
+      {
+        "name": "new_state",
+        "type": "darkbtc::types::AuctionState",
+        "kind": "data"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "get_bid_count",
-    "inputs": [{ "name": "auction_id", "type": "core::integer::u64" }],
-    "outputs": [{ "type": "core::integer::u64" }],
-    "state_mutability": "view"
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "get_auction_count",
-    "inputs": [],
-    "outputs": [{ "type": "core::integer::u64" }],
-    "state_mutability": "view"
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
   },
   {
-    "type": "function",
-    "name": "has_committed",
-    "inputs": [
-      { "name": "auction_id", "type": "core::integer::u64" },
-      { "name": "bidder", "type": "core::starknet::contract_address::ContractAddress" }
-    ],
-    "outputs": [{ "type": "core::bool" }],
-    "state_mutability": "view"
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "OwnershipTransferred",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+        "kind": "nested"
+      },
+      {
+        "name": "OwnershipTransferStarted",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+        "kind": "nested"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "darkbtc::sealed_auction::SealedAuction::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "AuctionCreated",
+        "type": "darkbtc::sealed_auction::SealedAuction::AuctionCreated",
+        "kind": "nested"
+      },
+      {
+        "name": "BidCommitted",
+        "type": "darkbtc::sealed_auction::SealedAuction::BidCommitted",
+        "kind": "nested"
+      },
+      {
+        "name": "BidRevealed",
+        "type": "darkbtc::sealed_auction::SealedAuction::BidRevealed",
+        "kind": "nested"
+      },
+      {
+        "name": "AuctionSettled",
+        "type": "darkbtc::sealed_auction::SealedAuction::AuctionSettled",
+        "kind": "nested"
+      },
+      {
+        "name": "AuctionCancelled",
+        "type": "darkbtc::sealed_auction::SealedAuction::AuctionCancelled",
+        "kind": "nested"
+      },
+      {
+        "name": "PhaseAdvanced",
+        "type": "darkbtc::sealed_auction::SealedAuction::PhaseAdvanced",
+        "kind": "nested"
+      },
+      {
+        "name": "OwnableEvent",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+        "kind": "flat"
+      }
+    ]
   }
 ]
