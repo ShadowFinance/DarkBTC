@@ -8,5 +8,9 @@ export const CONTRACT_ADDRESSES = {
 } as const;
 
 export const CHAIN_ID = (import.meta.env.VITE_CHAIN_ID ?? 'SN_SEPOLIA') as string;
-export const RPC_URL = (import.meta.env.VITE_RPC_URL ?? 'https://starknet-sepolia.public.blastapi.io/rpc/v0_7') as string;
-export const INDEXER_URL = (import.meta.env.VITE_INDEXER_URL ?? 'http://localhost:3001') as string;
+export const RPC_URL = (import.meta.env.VITE_RPC_URL ?? '/rpc') as string;
+export const INDEXER_URL = (import.meta.env.VITE_INDEXER_URL ?? '/api') as string;
+export const AUCTION_DEPOSIT_TOKEN =
+  (import.meta.env.VITE_AUCTION_DEPOSIT_TOKEN ??
+    import.meta.env.VITE_USDC_ADDRESS ??
+    '0x0') as HexString;

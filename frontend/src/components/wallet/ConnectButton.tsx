@@ -1,32 +1,29 @@
 import React from 'react';
-import { useAccount, useDisconnect } from '@starknet-react/core';
-import { connect } from 'starknetkit';
-import { InjectedConnector } from 'starknetkit/injected';
-import { WebWalletConnector } from 'starknetkit/webwallet';
+import { useAccount, useConnect, useDisconnect } from '@starknet-react/core';
+import { useStarknetkitConnectModal } from 'starknetkit';
 import { Wallet, ChevronDown, LogOut, ExternalLink } from 'lucide-react';
 import { clsx } from 'clsx';
 import { shortenAddress } from '../../lib/starknet';
 import { CHAIN_ID } from '../../constants/contracts';
-
-const connectors = [
-  new InjectedConnector({ options: { id: 'argentX' } }),
-  new InjectedConnector({ options: { id: 'braavos' } }),
-  new WebWalletConnector({ url: 'https://web.argent.xyz' }),
-];
+import { walletConnectors } from '../../lib/wallet';
 
 export default function ConnectButton() {
   const { address, isConnected } = useAccount();
+  const { connectAsync } = useConnect();
   const { disconnect } = useDisconnect();
+  const { starknetkitConnectModal } = useStarknetkitConnectModal({
+    connectors: walletConnectors,
+    modalMode: 'alwaysAsk',
+  });
   const [showMenu, setShowMenu] = React.useState(false);
   const [connecting, setConnecting] = React.useState(false);
 
   async function handleConnect() {
     setConnecting(true);
     try {
-      await connect({
-        modalMode: 'alwaysAsk',
-        connectors,
-      });
+      const result = await starknetkitConnectModal();
+      if (!result.connector) return;
+      await connectAsync({ connector: result.connector });
     } catch {
       // user dismissed
     } finally {

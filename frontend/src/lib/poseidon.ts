@@ -4,7 +4,9 @@ import type { HexString } from '../types';
 const MASK128 = (1n << 128n) - 1n;
 
 export function domain(str: string): bigint {
-  const hex = Buffer.from(str, 'ascii').toString('hex');
+  const hex = Array.from(str)
+    .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('');
   return BigInt('0x' + hex);
 }
 
