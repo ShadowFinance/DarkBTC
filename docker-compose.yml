@@ -17,15 +17,19 @@ services:
       timeout: 5s
       retries: 10
 
-  # Minimal indexer for Merkle proofs (placeholder — implement separately)
+  # Merkle proof and market data indexer
   indexer:
     image: node:20-alpine
     working_dir: /app
     volumes:
-      - ./indexer:/app
+      - ./:/app
     ports:
       - "3001:3001"
-    command: ["sh", "-c", "echo 'Indexer placeholder' && sleep infinity"]
+    environment:
+      - INDEXER_HOST=0.0.0.0
+      - PORT=3001
+      - RPC_UPSTREAMS=${RPC_UPSTREAMS:-http://devnet:5050}
+    command: ["node", "indexer/server.mjs"]
     depends_on:
       devnet:
         condition: service_healthy
@@ -45,10 +49,14 @@ services:
       - VITE_SEALED_AUCTION_ADDRESS=${VITE_SEALED_AUCTION_ADDRESS:-0x0}
       - VITE_DARK_ORDERBOOK_ADDRESS=${VITE_DARK_ORDERBOOK_ADDRESS:-0x0}
       - VITE_CHAIN_ID=SN_SEPOLIA
-      - VITE_RPC_URL=http://devnet:5050
+      - VITE_RPC_URL=/rpc
       - VITE_WBTC_ADDRESS=${VITE_WBTC_ADDRESS:-0x0}
       - VITE_USDC_ADDRESS=${VITE_USDC_ADDRESS:-0x0}
-      - VITE_INDEXER_URL=http://indexer:3001
+      - VITE_WBTC_DECIMALS=${VITE_WBTC_DECIMALS:-18}
+      - VITE_USDC_DECIMALS=${VITE_USDC_DECIMALS:-18}
+      - VITE_AUCTION_DEPOSIT_TOKEN=${VITE_AUCTION_DEPOSIT_TOKEN:-0x0}
+      - VITE_INDEXER_URL=/api
+      - INDEXER_PROXY_TARGET=http://indexer:3001
     command: ["sh", "-c", "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"]
     depends_on:
       - devnet
