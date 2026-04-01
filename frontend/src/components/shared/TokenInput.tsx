@@ -11,6 +11,7 @@ interface TokenInputProps {
   amount: string;
   onAmountChange: (value: string) => void;
   onTokenChange: (token: Token) => void;
+  tokens?: Token[];
   balance?: bigint;
   disabled?: boolean;
   usdValue?: number;
@@ -22,6 +23,7 @@ export default function TokenInput({
   amount,
   onAmountChange,
   onTokenChange,
+  tokens = TOKENS,
   balance,
   disabled = false,
   usdValue,
@@ -67,7 +69,7 @@ export default function TokenInput({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
               <div className="absolute top-full left-0 mt-1 z-20 w-40 rounded-lg bg-gray-800 border border-gray-700 shadow-xl overflow-hidden">
-                {TOKENS.map((t) => (
+                {tokens.map((t) => (
                   <button
                     key={t.address}
                     onClick={() => { onTokenChange(t); setDropdownOpen(false); }}

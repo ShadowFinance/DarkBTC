@@ -6,6 +6,7 @@ import { useCancelOrder } from '../hooks/useDarkOrderbook';
 import StatusBadge from '../components/shared/StatusBadge';
 import { TOKENS } from '../constants/tokens';
 import { format } from 'date-fns';
+import { formatTokenAmount } from '../lib/starknet';
 
 export default function PortfolioPage() {
   const { notes, myOrders } = useDarkBTCStore();
@@ -72,7 +73,7 @@ export default function PortfolioPage() {
                         <td className="px-4 py-3 font-medium">{token?.symbol ?? 'Unknown'}</td>
                         <td className="px-4 py-3 font-mono">
                           <div className="flex items-center gap-2">
-                            <span>{isRevealed ? (Number(note.amount) / 1e8).toFixed(8) : '••••••'}</span>
+                            <span>{isRevealed ? formatTokenAmount(note.amount, token?.decimals ?? 18) : '••••••'}</span>
                             <button
                               onClick={() => toggleReveal(note.commitment)}
                               className="text-gray-500 hover:text-gray-300 transition-colors"
@@ -156,7 +157,7 @@ export default function PortfolioPage() {
                 <div key={token.address} className="rounded-xl bg-gray-800/40 border border-gray-700 p-4">
                   <p className="text-xs text-gray-500">{token.name}</p>
                   <p className="text-2xl font-mono font-bold mt-1">
-                    {value > 0n ? (Number(value) / 10 ** token.decimals).toFixed(token.decimals > 8 ? 4 : token.decimals) : '0'}
+                    {value > 0n ? formatTokenAmount(value, token.decimals) : '0'}
                   </p>
                   <p className="text-xs text-gray-600 mt-0.5">{token.symbol}</p>
                 </div>

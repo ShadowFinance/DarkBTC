@@ -4,6 +4,9 @@ import type { AuctionItem } from '../../types';
 import StatusBadge from '../shared/StatusBadge';
 import { useDarkBTCStore } from '../../store';
 import BidModal from './BidModal';
+import { AUCTION_DEPOSIT_TOKEN } from '../../constants/contracts';
+import { TOKEN_MAP } from '../../constants/tokens';
+import { feltToText, formatTokenAmount } from '../../lib/starknet';
 
 interface AuctionCardProps {
   auction: AuctionItem;
@@ -31,6 +34,12 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
   const [bidModalOpen, setBidModalOpen] = React.useState(false);
   const { getBidSecret } = useDarkBTCStore();
   const hasCommitted = !!getBidSecret(auction.id);
+  const marketToken = TOKEN_MAP[auction.assetId.toLowerCase()];
+  const depositToken = TOKEN_MAP[AUCTION_DEPOSIT_TOKEN.toLowerCase()];
+  const marketLabel =
+    marketToken?.symbol ||
+    feltToText(auction.assetId) ||
+    `${auction.assetId.slice(0, 8)}…`;
 
   const activeTarget =
     auction.state === 'CommitPhase' ? auction.commitEnd : auction.revealEnd;
@@ -43,15 +52,31 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
     <div className="rounded-xl bg-gray-800/50 border border-gray-700 p-5 space-y-4 hover:border-gray-600 transition-colors">
       <div className="flex items-start justify-between">
         <div>
-          <p className="font-mono text-sm text-gray-400 truncate max-w-[120px]">
-            {auction.assetId.slice(0, 8)}…
-          </p>
+          <p className="font-mono text-sm text-gray-200">{marketLabel}</p>
           <p className="text-xs text-gray-500 mt-0.5">
             {auction.bidCount.toString()} bid{auction.bidCount !== 1n ? 's' : ''}
           </p>
         </div>
         <StatusBadge status={auction.state} />
       </div>
+
+      {auction.reservePrice !== undefined && depositToken && (
+        <div className="rounded-lg bg-gray-900/50 border border-gray-700 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Reserve</p>
+          <p className="font-mono text-sm text-white">
+            {formatTokenAmount(auction.reservePrice, depositToken.decimals)} {depositToken.symbol}
+          </p>
+        </div>
+      )}
+
+      {auction.currentBid !== undefined && auction.currentBid > 0n && depositToken && (
+        <div className="rounded-lg bg-gray-900/50 border border-gray-700 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Leading Bid</p>
+          <p className="font-mono text-sm text-white">
+            {formatTokenAmount(auction.currentBid, depositToken.decimals)} {depositToken.symbol}
+          </p>
+        </div>
+      )}
 
       {(auction.state === 'CommitPhase' || auction.state === 'RevealPhase') && (
         <div className="text-center">
@@ -64,7 +89,7 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
 
       {auction.state === 'Settled' && (
         <p className="text-xs text-gray-500">
-          Settled {formatDistanceToNow(auction.revealEnd * 1000, { addSuffix: true })}
+          Settled {formatDistanceToNow((auction.createdAt ?? auction.revealEnd) * 1000, { addSuffix: true })}
         </p>
       )}
 

@@ -3,13 +3,14 @@ import { clsx } from 'clsx';
 import { useSubmitOrder } from '../../hooks/useDarkOrderbook';
 import { TOKENS } from '../../constants/tokens';
 import type { Token } from '../../types';
-import { parseTokenAmount } from '../../lib/starknet';
+import { isConfiguredAddress, parseTokenAmount } from '../../lib/starknet';
 import TokenInput from '../shared/TokenInput';
 
 export default function OrderPanel() {
+  const assetOptions = TOKENS.filter((token) => token.symbol !== 'USDC' && isConfiguredAddress(token.address));
+  const collateralToken = TOKENS.find((token) => token.symbol === 'USDC') ?? TOKENS[1];
   const [side, setSide] = React.useState<'Buy' | 'Sell'>('Buy');
-  const [assetToken, setAssetToken] = React.useState<Token>(TOKENS[0]);
-  const collateralToken = TOKENS[1];
+  const [assetToken, setAssetToken] = React.useState<Token>(assetOptions[0] ?? TOKENS[0]);
   const [amount, setAmount] = React.useState('');
   const [price, setPrice] = React.useState('');
 
@@ -69,6 +70,7 @@ export default function OrderPanel() {
           amount={amount}
           onAmountChange={setAmount}
           onTokenChange={setAssetToken}
+          tokens={assetOptions}
         />
       </div>
 
@@ -96,7 +98,7 @@ export default function OrderPanel() {
 
       <button
         onClick={handleSubmit}
-        disabled={!amount || !price || isPending}
+        disabled={!amount || !price || isPending || !assetOptions.length}
         className={clsx(
           'w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
           side === 'Buy' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white',

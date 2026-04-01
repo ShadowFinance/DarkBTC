@@ -4,7 +4,9 @@ import Modal from '../shared/Modal';
 import { useCommitBid, useRevealBid } from '../../hooks/useSealedAuction';
 import { useDarkBTCStore } from '../../store';
 import type { AuctionItem } from '../../types';
-import { parseTokenAmount } from '../../lib/starknet';
+import { formatTokenAmount, parseTokenAmount } from '../../lib/starknet';
+import { AUCTION_DEPOSIT_TOKEN } from '../../constants/contracts';
+import { TOKEN_MAP } from '../../constants/tokens';
 
 interface BidModalProps {
   auction: AuctionItem;
@@ -15,6 +17,7 @@ interface BidModalProps {
 export default function BidModal({ auction, open, onClose }: BidModalProps) {
   const [amount, setAmount] = React.useState('');
   const [copied, setCopied] = React.useState(false);
+  const depositToken = TOKEN_MAP[AUCTION_DEPOSIT_TOKEN.toLowerCase()];
 
   const { getBidSecret } = useDarkBTCStore();
   const bidSecret = getBidSecret(auction.id);
@@ -24,9 +27,13 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
   const { mutateAsync: revealBid, isPending: revealing } = useRevealBid();
 
   async function handleCommit() {
-    if (!amount) return;
-    const amountBigInt = parseTokenAmount(amount, 8);
-    await commitBid({ auctionId: auction.id, amount: amountBigInt });
+    if (!amount || !depositToken || auction.reservePrice === undefined) return;
+    const amountBigInt = parseTokenAmount(amount, depositToken.decimals);
+    await commitBid({
+      auctionId: auction.id,
+      amount: amountBigInt,
+      reservePrice: auction.reservePrice,
+    });
     onClose();
   }
 
@@ -54,7 +61,9 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
           <div className="p-3 rounded-lg bg-gray-800 border border-gray-700">
             <p className="text-xs text-gray-500 mb-1">Your bid amount</p>
             <p className="font-mono text-lg text-white">
-              {(Number(bidSecret.amount) / 1e8).toFixed(8)} BTC
+              {depositToken
+                ? `${formatTokenAmount(bidSecret.amount, depositToken.decimals)} ${depositToken.symbol}`
+                : bidSecret.amount.toString()}
             </p>
           </div>
 
@@ -84,8 +93,19 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
         </div>
       ) : (
         <div className="space-y-4">
+          {auction.reservePrice !== undefined && depositToken && (
+            <div className="p-3 rounded-lg bg-gray-800 border border-gray-700">
+              <p className="text-xs text-gray-500 mb-1">Minimum reserve deposit</p>
+              <p className="font-mono text-lg text-white">
+                {formatTokenAmount(auction.reservePrice, depositToken.decimals)} {depositToken.symbol}
+              </p>
+            </div>
+          )}
+
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">Bid Amount (BTC)</label>
+            <label className="text-xs text-gray-500 mb-1 block">
+              Bid Amount ({depositToken?.symbol ?? 'Token'})
+            </label>
             <input
               type="number"
               value={amount}
@@ -104,7 +124,7 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
 
           <button
             onClick={handleCommit}
-            disabled={!amount || committing}
+            disabled={!amount || committing || !depositToken || auction.reservePrice === undefined}
             className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50"
           >
             {committing ? 'Submitting…' : 'Submit Sealed Bid'}
