@@ -116,7 +116,7 @@ export default function SwapPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-3 pb-3">
+    <div className="mx-auto max-w-md space-y-3 pb-24 sm:pb-6">
       <TokenInput
         label="You Pay"
         token={tokenIn}
@@ -254,7 +254,7 @@ export default function SwapPanel() {
 
       {hasValidAmount && !matchingNote && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-          DarkBTC swaps spend one shielded note per trade. Your total inventory can be larger, but one note must match the swap amount exactly to avoid stranding funds in the pool.
+          Why the button is stuck on "Exact note required": shielded funds are stored as separate private notes, and the current swap contract spends one full note per trade. Your total shielded balance can be larger, but the swap amount must exactly match one note below. Select a spendable note chip or shield that same amount first.
         </div>
       )}
 
@@ -301,7 +301,7 @@ export default function SwapPanel() {
                   : quoteUnavailable
                     ? 'Quote Unavailable'
                   : !matchingNote
-                    ? 'Exact Note Needed'
+                    ? 'Exact Note Required'
                     : 'Swap Privately'}
         </button>
 

@@ -37,7 +37,7 @@ export default function TokenInput({
   }
 
   return (
-    <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4">
+    <div className="overflow-hidden rounded-xl border border-gray-700 bg-gray-800/60 p-4">
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs text-gray-500">{label}</span>
         {balance !== undefined && token && (
@@ -51,8 +51,8 @@ export default function TokenInput({
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="relative shrink-0">
           <button
             onClick={() => setDropdownOpen((v) => !v)}
             className={clsx(
@@ -95,7 +95,7 @@ export default function TokenInput({
           placeholder="0.00"
           autoComplete="off"
           disabled={disabled}
-          className="flex-1 bg-transparent text-right text-xl font-mono text-white placeholder-gray-600 outline-none disabled:opacity-50"
+          className="min-w-0 flex-1 bg-transparent text-right font-mono text-lg text-white placeholder-gray-600 outline-none disabled:opacity-50 sm:text-xl"
         />
       </div>
 

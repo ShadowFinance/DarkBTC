@@ -58,7 +58,7 @@ export default function OrderPanel() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {/* Side toggle */}
       <div className="flex rounded-lg overflow-hidden border border-gray-700">
         {(['Buy', 'Sell'] as const).map((s) => (
@@ -102,7 +102,7 @@ export default function OrderPanel() {
           onChange={(e) => setPrice(e.target.value)}
           placeholder="50000.00"
           autoComplete="off"
-          className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white font-mono outline-none focus:border-amber-500"
+          className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 font-mono text-base text-white outline-none focus:border-amber-500 sm:text-lg"
         />
       </div>
 

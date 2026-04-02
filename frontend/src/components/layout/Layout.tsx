@@ -16,7 +16,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white overflow-hidden">
+    <div className="flex min-h-[100dvh] bg-gray-900 text-white overflow-x-hidden lg:h-screen lg:overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -72,7 +72,7 @@ export default function Layout() {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-gray-900 min-h-screen">
+        <main className="min-h-0 flex-1 overflow-y-auto bg-gray-900">
           <Outlet />
         </main>
       </div>
