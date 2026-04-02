@@ -241,7 +241,7 @@ node scripts/smoke.mjs
 
 ### Render Indexer
 
-The repo includes [`render.yaml`](/Users/ginmax/DarkBTC/render.yaml) for the indexer service.
+The repo includes [`render.yaml`](/render.yaml) for the indexer service.
 
 Expected service:
 
@@ -252,7 +252,7 @@ Expected service:
 
 ### Vercel Frontend
 
-Deploy from the [`frontend`](/Users/ginmax/DarkBTC/frontend) directory. [`frontend/vercel.json`](/Users/ginmax/DarkBTC/frontend/vercel.json) rewrites:
+Deploy from the [`frontend`](/DarkBTC/frontend) directory. [`frontend/vercel.json`](/DarkBTC/frontend/vercel.json) rewrites:
 
 - `/api/*` to the Render indexer
 - `/rpc/*` to the Render indexer
