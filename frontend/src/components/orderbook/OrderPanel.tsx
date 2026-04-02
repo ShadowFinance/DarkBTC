@@ -8,7 +8,7 @@ import {
   extractErrorMessage,
   formatTokenAmount,
   isConfiguredAddress,
-  parseTokenAmount,
+  tryParseTokenAmount,
 } from '../../lib/starknet';
 import TokenInput from '../shared/TokenInput';
 
@@ -28,21 +28,27 @@ export default function OrderPanel() {
     error,
   } = useSubmitOrder();
 
+  const parsedAmount = tryParseTokenAmount(amount, assetToken.decimals);
+  const parsedPrice = tryParseTokenAmount(price, collateralToken.decimals);
   const collateralAmount =
-    amount && price
-      ? parseTokenAmount(amount, assetToken.decimals) *
-        parseTokenAmount(price, collateralToken.decimals) /
+    parsedAmount !== null && parsedPrice !== null
+      ? parsedAmount * parsedPrice /
         10n ** BigInt(collateralToken.decimals)
       : 0n;
+  const validationError = amount && parsedAmount === null
+    ? 'Enter a valid order size.'
+    : price && parsedPrice === null
+      ? 'Enter a valid limit price.'
+      : null;
 
   async function handleSubmit() {
-    if (!amount || !price) return;
+    if (!parsedAmount || !parsedPrice) return;
 
     await submitOrder({
       side,
       assetId: assetToken.address,
-      amount: parseTokenAmount(amount, assetToken.decimals),
-      price: parseTokenAmount(price, collateralToken.decimals),
+      amount: parsedAmount,
+      price: parsedPrice,
       collateralAmount,
       collateralAsset: collateralToken.address,
     });
@@ -90,10 +96,12 @@ export default function OrderPanel() {
       <div>
         <label className="text-xs text-gray-500 mb-1 block">Limit Price ({collateralToken.symbol})</label>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           placeholder="50000.00"
+          autoComplete="off"
           className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white font-mono outline-none focus:border-amber-500"
         />
       </div>
@@ -122,7 +130,7 @@ export default function OrderPanel() {
 
       <button
         onClick={handleSubmit}
-        disabled={!amount || !price || isPending || !assetOptions.length}
+        disabled={!parsedAmount || !parsedPrice || isPending || !assetOptions.length || !!validationError}
         className={clsx(
           'w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
           side === 'Buy' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white',
@@ -130,6 +138,10 @@ export default function OrderPanel() {
       >
         {isPending ? 'Submitting…' : `Submit ${side} Order`}
       </button>
+
+      {validationError && (
+        <p className="text-sm text-rose-300">{validationError}</p>
+      )}
 
       {error && (
         <p className="text-sm text-rose-300">{extractErrorMessage(error)}</p>

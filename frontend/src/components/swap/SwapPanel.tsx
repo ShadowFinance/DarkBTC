@@ -11,7 +11,7 @@ import {
   extractErrorMessage,
   formatTokenAmount,
   isConfiguredAddress,
-  parseTokenAmount,
+  tryParseTokenAmount,
 } from '../../lib/starknet';
 
 const SLIPPAGE_PRESETS = ['0.5', '1.0', '2.0'];
@@ -29,22 +29,35 @@ export default function SwapPanel() {
   const { notes } = useDarkBTCStore();
 
   const effectiveSlippage = customSlippage || slippage;
-  const amountInBigInt = amountIn
-    ? parseTokenAmount(amountIn, tokenIn.decimals)
-    : 0n;
+  const parsedAmountIn = tryParseTokenAmount(amountIn, tokenIn.decimals);
+  const amountInBigInt = parsedAmountIn ?? 0n;
+  const hasValidAmount = parsedAmountIn !== null && parsedAmountIn > 0n;
+  const amountInputError = amountIn && parsedAmountIn === null
+    ? `Enter a valid ${tokenIn.symbol} amount.`
+    : null;
   const { data: walletBalance } = useTokenBalance(tokenIn.address);
 
   const shieldedNotes = notes.filter(
     (note) => !note.spent && note.assetAddress.toLowerCase() === tokenIn.address.toLowerCase(),
   );
-  const matchingNote = shieldedNotes.find((note) => note.amount === amountInBigInt);
+  const matchingNote = hasValidAmount
+    ? shieldedNotes.find((note) => note.amount === amountInBigInt)
+    : undefined;
   const shieldedBalance = shieldedNotes.reduce((total, note) => total + note.amount, 0n);
 
-  const { data: quote, isLoading: quoteLoading } = useSwapQuote(
+  const {
+    data: quote,
+    isLoading: quoteLoading,
+    error: quoteError,
+  } = useSwapQuote(
     tokenIn.address,
     tokenOut.address,
     amountInBigInt,
   );
+  const hasExecutableQuote = !!quote && quote.outputAmount > 0n;
+  const quotePending = hasValidAmount && quoteLoading && !quote;
+  const quoteUnavailable =
+    hasValidAmount && !quotePending && !quoteError && (!quote || quote.outputAmount === 0n);
 
   const {
     mutateAsync: executeSwap,
@@ -80,7 +93,7 @@ export default function SwapPanel() {
   }
 
   async function handleSwap() {
-    if (!quote || amountInBigInt === 0n) return;
+    if (!quote || quote.outputAmount === 0n || amountInBigInt === 0n) return;
 
     const slippageNum = parseFloat(effectiveSlippage);
     if (isNaN(slippageNum) || slippageNum < 0 || slippageNum > 50) return;
@@ -103,7 +116,7 @@ export default function SwapPanel() {
   }
 
   return (
-    <div className="max-w-md mx-auto space-y-2">
+    <div className="mx-auto max-w-md space-y-3 pb-3">
       <TokenInput
         label="You Pay"
         token={tokenIn}
@@ -217,10 +230,12 @@ export default function SwapPanel() {
           ))}
         </div>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           placeholder="Custom"
           value={customSlippage}
           onChange={(e) => setCustomSlippage(e.target.value)}
+          autoComplete="off"
           className="w-20 px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs text-gray-300 outline-none focus:border-amber-500"
         />
       </div>
@@ -231,9 +246,27 @@ export default function SwapPanel() {
         <span>Trade amounts and counterparties stay hidden behind opaque Starknet commitments.</span>
       </div>
 
-      {amountInBigInt > 0n && !matchingNote && (
+      {amountInputError && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+          {amountInputError}
+        </div>
+      )}
+
+      {hasValidAmount && !matchingNote && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-          Swaps currently spend one shielded note at a time. Shield the exact amount you want to trade, then come back to execute the swap safely.
+          DarkBTC swaps spend one shielded note per trade. Your total inventory can be larger, but one note must match the swap amount exactly to avoid stranding funds in the pool.
+        </div>
+      )}
+
+      {quoteError && hasValidAmount && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+          {extractErrorMessage(quoteError)}
+        </div>
+      )}
+
+      {quoteUnavailable && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          No executable quote is available for this pair and amount right now.
         </div>
       )}
 
@@ -244,23 +277,38 @@ export default function SwapPanel() {
         </div>
       )}
 
-      <button
-        disabled={!quote || amountInBigInt === 0n || swapPending || quoteLoading || !matchingNote}
-        onClick={() => setShowConfirm(true)}
-        className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {swapPending
-          ? 'Swapping…'
-          : quoteLoading
-            ? 'Getting quote…'
-            : !matchingNote && amountInBigInt > 0n
-              ? 'Create Exact Note First'
-              : 'Swap Privately'}
-      </button>
+      <div className="sticky bottom-0 z-10 -mx-1 rounded-2xl border border-gray-800 bg-gray-950/95 p-1 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
+        <button
+          disabled={
+            !hasExecutableQuote ||
+            !hasValidAmount ||
+            !!amountInputError ||
+            swapPending ||
+            quotePending ||
+            !matchingNote
+          }
+          onClick={() => setShowConfirm(true)}
+          className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {swapPending
+            ? 'Swapping…'
+            : quotePending
+              ? 'Getting quote…'
+              : amountInputError
+                ? 'Enter Valid Amount'
+                : !hasValidAmount
+                  ? 'Enter Amount'
+                  : quoteUnavailable
+                    ? 'Quote Unavailable'
+                  : !matchingNote
+                    ? 'Exact Note Needed'
+                    : 'Swap Privately'}
+        </button>
 
-      {swapError && (
-        <p className="text-sm text-rose-300">{extractErrorMessage(swapError)}</p>
-      )}
+        {swapError && (
+          <p className="px-1 pt-3 text-sm text-rose-300">{extractErrorMessage(swapError)}</p>
+        )}
+      </div>
 
       {showConfirm && quote && (
         <div className="p-4 rounded-xl bg-gray-800 border border-gray-700 space-y-3">

@@ -10,6 +10,7 @@ import {
   isConfiguredAddress,
   parseU256,
   waitForTransaction,
+  withTimeout,
 } from '../lib/starknet';
 import type { HexString, SwapQuote } from '../types';
 import shieldedSwapAbiJson from '../abis/shielded_swap.json';
@@ -36,7 +37,11 @@ export function useSwapQuote(assetIn: HexString, assetOut: HexString, amountIn: 
         address: CONTRACT_ADDRESSES.SHIELDED_SWAP,
         providerOrAccount: provider,
       });
-      const result = (await contract.call('get_swap_quote', [assetIn, assetOut, { low: amountIn, high: 0n }])) as {
+      const result = (await withTimeout(
+        contract.call('get_swap_quote', [assetIn, assetOut, { low: amountIn, high: 0n }]),
+        12_000,
+        'Quote request timed out. Please retry.',
+      )) as {
         input_amount: { low: bigint; high: bigint };
         output_amount: { low: bigint; high: bigint };
         price_impact_bps: bigint | string | number;
@@ -55,8 +60,10 @@ export function useSwapQuote(assetIn: HexString, assetOut: HexString, amountIn: 
       amountIn > 0n &&
       isConfiguredAddress(CONTRACT_ADDRESSES.SHIELDED_SWAP) &&
       isConfiguredAddress(assetIn) &&
-      isConfiguredAddress(assetOut),
+      isConfiguredAddress(assetOut) &&
+      assetIn.toLowerCase() !== assetOut.toLowerCase(),
     refetchInterval: 10000,
+    retry: 1,
   });
 }
 

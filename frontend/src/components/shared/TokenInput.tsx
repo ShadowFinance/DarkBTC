@@ -88,10 +88,12 @@ export default function TokenInput({
         </div>
 
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="0.00"
+          autoComplete="off"
           disabled={disabled}
           className="flex-1 bg-transparent text-right text-xl font-mono text-white placeholder-gray-600 outline-none disabled:opacity-50"
         />

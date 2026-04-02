@@ -8,7 +8,7 @@ import type { AuctionItem } from '../../types';
 import {
   extractErrorMessage,
   formatTokenAmount,
-  parseTokenAmount,
+  tryParseTokenAmount,
 } from '../../lib/starknet';
 import { AUCTION_DEPOSIT_TOKEN } from '../../constants/contracts';
 import { TOKEN_MAP } from '../../constants/tokens';
@@ -28,6 +28,15 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
   const { getBidSecret } = useDarkBTCStore();
   const bidSecret = getBidSecret(auction.id);
   const isRevealPhase = auction.state === 'RevealPhase';
+  const parsedAmount = depositToken ? tryParseTokenAmount(amount, depositToken.decimals) : null;
+  const validationError = amount && parsedAmount === null
+    ? 'Enter a valid bid amount.'
+    : parsedAmount !== null &&
+        auction.reservePrice !== undefined &&
+        parsedAmount > 0n &&
+        parsedAmount < auction.reservePrice
+      ? 'Bid must meet or exceed the reserve price.'
+      : null;
 
   const {
     mutateAsync: commitBid,
@@ -41,11 +50,10 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
   } = useRevealBid();
 
   async function handleCommit() {
-    if (!amount || !depositToken || auction.reservePrice === undefined) return;
-    const amountBigInt = parseTokenAmount(amount, depositToken.decimals);
+    if (!depositToken || auction.reservePrice === undefined || !parsedAmount) return;
     await commitBid({
       auctionId: auction.id,
-      amount: amountBigInt,
+      amount: parsedAmount,
       reservePrice: auction.reservePrice,
     });
     onClose();
@@ -125,10 +133,12 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
               Bid Amount ({depositToken?.symbol ?? 'Token'})
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.001"
+              autoComplete="off"
               className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white font-mono outline-none focus:border-amber-500"
             />
           </div>
@@ -142,11 +152,21 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
 
           <button
             onClick={handleCommit}
-            disabled={!amount || committing || !depositToken || auction.reservePrice === undefined}
+            disabled={
+              !parsedAmount ||
+              committing ||
+              !depositToken ||
+              auction.reservePrice === undefined ||
+              !!validationError
+            }
             className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50"
           >
             {committing ? 'Submitting…' : 'Submit Sealed Bid'}
           </button>
+
+          {validationError && (
+            <p className="text-sm text-rose-300">{validationError}</p>
+          )}
 
           {commitError && (
             <p className="text-sm text-rose-300">{extractErrorMessage(commitError)}</p>

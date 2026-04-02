@@ -7,8 +7,8 @@ import {
   extractErrorMessage,
   formatTokenAmount,
   isConfiguredAddress,
-  parseTokenAmount,
   shortenAddress,
+  tryParseTokenAmount,
 } from '../lib/starknet';
 import { useTokenFaucet } from '../hooks/useTokenFaucet';
 
@@ -39,9 +39,13 @@ function TokenFaucetCard({
   const faucetMint = useTokenFaucet();
 
   const isReady = isConfiguredAddress(address) && !!walletAddress;
+  const parsedAmount = tryParseTokenAmount(amount, decimals);
+  const validationError = amount && parsedAmount === null
+    ? `Enter a valid ${symbol} amount.`
+    : null;
 
   async function handleMint() {
-    const parsedAmount = parseTokenAmount(amount, decimals);
+    if (!parsedAmount) return;
     await faucetMint.mutateAsync({
       tokenAddress: address,
       tokenSymbol: symbol,
@@ -71,12 +75,12 @@ function TokenFaucetCard({
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
           <label className="text-xs uppercase tracking-[0.22em] text-white/50">Amount</label>
           <input
-            type="number"
-            min="0"
-            step="any"
+            type="text"
+            inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             placeholder="Enter amount"
+            autoComplete="off"
             className="mt-2 w-full bg-transparent text-3xl font-semibold text-white outline-none placeholder:text-white/20"
           />
           <div className="mt-3 flex flex-wrap gap-2">
@@ -115,12 +119,16 @@ function TokenFaucetCard({
         <button
           type="button"
           onClick={() => void handleMint()}
-          disabled={!isReady || faucetMint.isPending}
+          disabled={!isReady || faucetMint.isPending || !parsedAmount || !!validationError}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <FlaskConical size={16} />
           {faucetMint.isPending ? `Minting ${symbol}...` : `Mint ${symbol}`}
         </button>
+
+        {validationError && (
+          <p className="text-sm text-rose-300">{validationError}</p>
+        )}
 
         {faucetMint.error && (
           <p className="text-sm text-rose-300">{extractErrorMessage(faucetMint.error)}</p>

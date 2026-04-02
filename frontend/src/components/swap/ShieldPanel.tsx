@@ -10,7 +10,7 @@ import {
   extractErrorMessage,
   formatTokenAmount,
   isConfiguredAddress,
-  parseTokenAmount,
+  tryParseTokenAmount,
 } from '../../lib/starknet';
 
 export default function ShieldPanel() {
@@ -24,16 +24,20 @@ export default function ShieldPanel() {
     isPending,
     error,
   } = useDeposit();
+  const parsedAmount = tryParseTokenAmount(amount, token.decimals);
+  const validationError = amount && parsedAmount === null
+    ? `Enter a valid ${token.symbol} amount.`
+    : null;
 
   const shieldedBalance = notes
     .filter((note) => !note.spent && note.assetAddress.toLowerCase() === token.address.toLowerCase())
     .reduce((total, note) => total + note.amount, 0n);
 
   async function handleDeposit() {
-    if (!amount) return;
+    if (!parsedAmount) return;
     await deposit({
       asset: token.address,
-      amount: parseTokenAmount(amount, token.decimals),
+      amount: parsedAmount,
     });
     setAmount('');
   }
@@ -80,11 +84,15 @@ export default function ShieldPanel() {
 
       <button
         onClick={handleDeposit}
-        disabled={!amount || isPending || !depositableTokens.length}
+        disabled={!parsedAmount || isPending || !depositableTokens.length || !!validationError}
         className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isPending ? 'Depositing…' : 'Shield Deposit'}
       </button>
+
+      {validationError && (
+        <p className="text-sm text-rose-300">{validationError}</p>
+      )}
 
       {error && (
         <p className="text-sm text-rose-300">{extractErrorMessage(error)}</p>

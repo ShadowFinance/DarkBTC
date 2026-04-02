@@ -1,6 +1,29 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { ShieldedNote, PrivateOrder, PendingTx, BidSecret, HexString } from '../types';
+
+const BIGINT_TAG = '__darkbtc_bigint__';
+
+function bigintReplacer(_key: string, value: unknown) {
+  if (typeof value === 'bigint') {
+    return { [BIGINT_TAG]: value.toString() };
+  }
+
+  return value;
+}
+
+function bigintReviver(_key: string, value: unknown) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    BIGINT_TAG in (value as Record<string, unknown>) &&
+    typeof (value as Record<string, unknown>)[BIGINT_TAG] === 'string'
+  ) {
+    return BigInt((value as Record<string, string>)[BIGINT_TAG]);
+  }
+
+  return value;
+}
 
 interface DarkBTCState {
   // Persisted
@@ -110,6 +133,10 @@ export const useDarkBTCStore = create<DarkBTCState>()(
     }),
     {
       name: 'darkbtc-storage',
+      storage: createJSONStorage(() => localStorage, {
+        replacer: bigintReplacer,
+        reviver: bigintReviver,
+      }),
       partialize: (state) => ({
         notes: state.notes,
         myOrders: state.myOrders,

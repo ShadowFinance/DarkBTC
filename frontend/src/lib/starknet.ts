@@ -51,6 +51,17 @@ export function parseTokenAmount(value: string, decimals: number): bigint {
   return BigInt(whole || '0') * 10n ** BigInt(decimals) + BigInt(paddedFraction || '0');
 }
 
+export function tryParseTokenAmount(value: string, decimals: number): bigint | null {
+  const normalized = value.trim();
+  if (!normalized || normalized === '.') return null;
+
+  try {
+    return parseTokenAmount(normalized, decimals);
+  } catch {
+    return null;
+  }
+}
+
 export function toUint256Calldata(value: bigint): [string, string] {
   const lowMask = (1n << 128n) - 1n;
   return [(value & lowMask).toString(), (value >> 128n).toString()];
@@ -99,4 +110,23 @@ export function extractErrorMessage(error: unknown): string {
   }
 
   return 'Something went wrong while talking to Starknet.';
+}
+
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+      promise.then(resolve).catch(reject);
+    });
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
