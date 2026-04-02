@@ -1,10 +1,16 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSendTransaction } from '@starknet-react/core';
 import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashNoteCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { getProvider, isConfiguredAddress, parseU256 } from '../lib/starknet';
+import {
+  extractErrorMessage,
+  getProvider,
+  isConfiguredAddress,
+  parseU256,
+  waitForTransaction,
+} from '../lib/starknet';
 import type { HexString } from '../types';
 import notePoolAbiJson from '../abis/note_pool.json';
 
@@ -24,6 +30,7 @@ interface WithdrawParams {
 
 export function useDeposit() {
   const { account } = useAccount();
+  const queryClient = useQueryClient();
   const { addNote, addPendingTx, removePendingTx } = useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
 
@@ -33,6 +40,7 @@ export function useDeposit() {
       if (!isConfiguredAddress(CONTRACT_ADDRESSES.NOTE_POOL)) {
         throw new Error('Note pool is not configured');
       }
+      if (amount <= 0n) throw new Error('Enter an amount greater than zero');
 
       const secret = generateSecret();
       const nonce = BigInt(Date.now());
@@ -59,37 +67,55 @@ export function useDeposit() {
         ],
       };
 
-      const result = await sendAsync([approveCall, depositCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Deposit', timestamp: Date.now() });
+      try {
+        const result = await sendAsync([approveCall, depositCall]);
+        const txHash = result.transaction_hash as HexString;
+        addPendingTx({ hash: txHash, description: 'Shield deposit', timestamp: Date.now() });
 
-      addNote({
-        commitment: bigIntToHex(commitment),
-        nullifier: bigIntToHex(nullifier),
-        secret: bigIntToHex(secret),
-        assetAddress: asset,
-        amount,
-        leafIndex: 0,
-        spent: false,
-        createdAt: Date.now(),
-      });
-
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+        try {
+          await waitForTransaction(txHash);
+          addNote({
+            commitment: bigIntToHex(commitment),
+            nullifier: bigIntToHex(nullifier),
+            secret: bigIntToHex(secret),
+            assetAddress: asset,
+            amount,
+            leafIndex: 0,
+            spent: false,
+            createdAt: Date.now(),
+          });
+          await queryClient.invalidateQueries({ queryKey: ['pool_balance', asset] });
+          await queryClient.invalidateQueries({ queryKey: ['token_balance'] });
+          return result;
+        } finally {
+          removePendingTx(txHash);
+        }
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }
 
 export function useWithdraw() {
   const { account } = useAccount();
+  const queryClient = useQueryClient();
   const { markNoteSpent, notes, addPendingTx, removePendingTx } = useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
 
   return useMutation({
     mutationFn: async ({ commitment, asset, amount, recipient }: WithdrawParams) => {
       if (!account) throw new Error('Wallet not connected');
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.NOTE_POOL)) {
+        throw new Error('Note pool is not configured');
+      }
 
       const note = notes.find((n) => n.commitment === commitment);
       if (!note) throw new Error('Note not found');
+      if (note.spent) throw new Error('This note has already been spent');
+      if (note.amount !== amount) {
+        throw new Error('Withdrawals must use the full note amount. Split notes by depositing exact sizes.');
+      }
 
       // Fetch Merkle proof from indexer
       const proofRes = await fetch(`${INDEXER_URL}/proof/${commitment}`);
@@ -113,11 +139,23 @@ export function useWithdraw() {
         ],
       };
 
-      const result = await sendAsync([withdrawCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Withdraw', timestamp: Date.now() });
-      markNoteSpent(commitment);
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+      try {
+        const result = await sendAsync([withdrawCall]);
+        const txHash = result.transaction_hash as HexString;
+        addPendingTx({ hash: txHash, description: 'Withdraw note', timestamp: Date.now() });
+
+        try {
+          await waitForTransaction(txHash);
+          markNoteSpent(commitment);
+          await queryClient.invalidateQueries({ queryKey: ['pool_balance', asset] });
+          await queryClient.invalidateQueries({ queryKey: ['token_balance'] });
+          return result;
+        } finally {
+          removePendingTx(txHash);
+        }
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }

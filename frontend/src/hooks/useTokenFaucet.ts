@@ -1,7 +1,10 @@
-import { useMutation } from '@tanstack/react-query';
-import { useAccount, useSendTransaction } from '@starknet-react/core';
-import { useDarkBTCStore } from '../store';
-import { isConfiguredAddress, toUint256Calldata } from '../lib/starknet';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAccount } from '@starknet-react/core';
+import { INDEXER_URL } from '../constants/contracts';
+import {
+  extractErrorMessage,
+  isConfiguredAddress,
+} from '../lib/starknet';
 import type { HexString } from '../types';
 
 interface FaucetMintParams {
@@ -13,8 +16,7 @@ interface FaucetMintParams {
 
 export function useTokenFaucet() {
   const { address } = useAccount();
-  const { sendAsync } = useSendTransaction({});
-  const { addPendingTx, removePendingTx } = useDarkBTCStore();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ tokenAddress, tokenSymbol, amount, recipient }: FaucetMintParams) => {
@@ -24,20 +26,34 @@ export function useTokenFaucet() {
       if (!isConfiguredAddress(tokenAddress)) throw new Error(`${tokenSymbol} faucet is not configured`);
       if (amount <= 0n) throw new Error('Enter an amount greater than zero');
 
-      const mintCall = {
-        contractAddress: tokenAddress,
-        entrypoint: 'mint',
-        calldata: [receiver, ...toUint256Calldata(amount)],
-      };
+      try {
+        const response = await fetch(`${INDEXER_URL}/faucet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recipient: receiver,
+            tokenAddress,
+            amount: amount.toString(),
+          }),
+        });
 
-      const result = await sendAsync([mintCall]);
-      addPendingTx({
-        hash: result.transaction_hash as HexString,
-        description: `Mint ${tokenSymbol}`,
-        timestamp: Date.now(),
-      });
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+        const payload = (await response.json()) as {
+          error?: string;
+          transactionHash?: HexString;
+          ok?: boolean;
+        };
+
+        if (!response.ok || !payload.ok || !payload.transactionHash) {
+          throw new Error(payload.error ?? `Failed to mint ${tokenSymbol}`);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ['token_balance'] });
+        return payload;
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }

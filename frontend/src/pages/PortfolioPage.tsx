@@ -6,12 +6,16 @@ import { useCancelOrder } from '../hooks/useDarkOrderbook';
 import StatusBadge from '../components/shared/StatusBadge';
 import { TOKENS } from '../constants/tokens';
 import { format } from 'date-fns';
-import { formatTokenAmount } from '../lib/starknet';
+import { extractErrorMessage, formatTokenAmount } from '../lib/starknet';
 
 export default function PortfolioPage() {
   const { notes, myOrders } = useDarkBTCStore();
   const [revealedNotes, setRevealedNotes] = React.useState<Set<string>>(new Set());
-  const { mutateAsync: cancelOrder, isPending: cancelling } = useCancelOrder();
+  const {
+    mutateAsync: cancelOrder,
+    isPending: cancelling,
+    error: cancelError,
+  } = useCancelOrder();
 
   function toggleReveal(commitment: string) {
     setRevealedNotes((prev) => {
@@ -95,6 +99,11 @@ export default function PortfolioPage() {
               </table>
             )}
           </div>
+          {cancelError && (
+            <div className="border-t border-gray-800 px-4 py-3 text-sm text-rose-300">
+              {extractErrorMessage(cancelError)}
+            </div>
+          )}
         </section>
 
         {/* Section 2: My Orders */}

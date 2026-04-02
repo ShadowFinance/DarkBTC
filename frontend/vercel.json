@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": "https://darkbtc-indexer.onrender.com/api"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "https://darkbtc-indexer.onrender.com/api/$1"
+    },
+    {
+      "source": "/rpc",
+      "destination": "https://darkbtc-indexer.onrender.com/rpc"
+    },
+    {
+      "source": "/rpc/(.*)",
+      "destination": "https://darkbtc-indexer.onrender.com/rpc/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

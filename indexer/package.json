@@ -1,8 +1,17 @@
 {
   "name": "darkbtc-indexer",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node --watch server.mjs",
     "start": "node server.mjs"
+  },
+  "dependencies": {
+    "micro-starknet": "^0.2.3",
+    "starknet": "^8.9.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

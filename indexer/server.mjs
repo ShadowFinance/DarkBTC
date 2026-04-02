@@ -2,12 +2,18 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Contract, RpcProvider, hash } from '../frontend/node_modules/starknet/dist/index.mjs';
+import { poseidonHashMany } from 'micro-starknet';
+import { Account, Contract, RpcProvider, hash } from 'starknet';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const ZERO_VALUE = asciiToHex('DARKBTC_EMPTY_LEAF');
+const CACHE_TTL_MS = 15_000;
+const DEFAULT_FAUCET_LIMITS = {
+  WBTC: 10n * 10n ** 18n,
+  USDC: 100_000n * 10n ** 18n,
+};
 
 const deploymentPath = path.join(ROOT_DIR, 'deployments', 'sepolia.json');
 const deploymentInfo = existsSync(deploymentPath)
@@ -21,7 +27,7 @@ const runtimeEnv = {
 };
 
 const config = {
-  host: runtimeEnv.INDEXER_HOST ?? '127.0.0.1',
+  host: runtimeEnv.INDEXER_HOST ?? '0.0.0.0',
   port: Number(runtimeEnv.PORT ?? '3001'),
   upstreams: (runtimeEnv.RPC_UPSTREAMS ?? runtimeEnv.RPC_URL ?? 'https://api.cartridge.gg/x/starknet/sepolia')
     .split(',')
@@ -31,7 +37,19 @@ const config = {
   shieldedSwap: runtimeEnv.VITE_SHIELDED_SWAP_ADDRESS ?? deploymentInfo?.contracts?.ShieldedSwap?.address ?? '0x0',
   sealedAuction: runtimeEnv.VITE_SEALED_AUCTION_ADDRESS ?? deploymentInfo?.contracts?.SealedAuction?.address ?? '0x0',
   darkOrderbook: runtimeEnv.VITE_DARK_ORDERBOOK_ADDRESS ?? deploymentInfo?.contracts?.DarkOrderbook?.address ?? '0x0',
+  wbtc: runtimeEnv.VITE_WBTC_ADDRESS ?? deploymentInfo?.tokens?.WBTC?.address ?? '0x0',
+  usdc: runtimeEnv.VITE_USDC_ADDRESS ?? deploymentInfo?.tokens?.USDC?.address ?? '0x0',
+  deployerAddress: runtimeEnv.DEPLOYER_ADDRESS ?? '0x0',
+  deployerPrivateKey: runtimeEnv.DEPLOYER_PRIVATE_KEY ?? '',
+  faucetCooldownMs: Number(runtimeEnv.FAUCET_COOLDOWN_MS ?? '120000'),
   startBlock: deploymentInfo?.blockNumber ?? 0,
+};
+
+const caches = {
+  auctions: createCacheEntry(),
+  fills: new Map(),
+  proofs: new Map(),
+  faucetClaims: new Map(),
 };
 
 const abis = {
@@ -59,14 +77,16 @@ createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === 'GET' && url.pathname === '/health') {
+    if (request.method === 'GET' && (url.pathname === '/health' || url.pathname === '/api/health')) {
       sendJson(response, 200, {
         ok: true,
         upstream: config.upstreams[activeUpstreamIndex] ?? null,
+        startBlock: config.startBlock,
         configured: {
           notePool: isConfiguredAddress(config.notePool),
           sealedAuction: isConfiguredAddress(config.sealedAuction),
           darkOrderbook: isConfiguredAddress(config.darkOrderbook),
+          faucet: isConfiguredAddress(config.deployerAddress) && !!config.deployerPrivateKey,
         },
       });
       return;
@@ -92,8 +112,14 @@ createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && url.pathname === '/api/orderbook/fills') {
-      const limit = Number(url.searchParams.get('limit') ?? '50');
+      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '50')));
       sendJson(response, 200, await getOrderFills(limit));
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/faucet') {
+      const body = JSON.parse((await readRawBody(request)).toString('utf8') || '{}');
+      sendJson(response, 200, await claimFaucet(body));
       return;
     }
 
@@ -187,7 +213,28 @@ function parseEnum(value) {
 }
 
 function poseidonPair(left, right) {
-  return normalizeHex(hash.computePoseidonHash(left, right));
+  return normalizeHex(poseidonHashMany([BigInt(left), BigInt(right)]));
+}
+
+function createCacheEntry() {
+  return {
+    value: null,
+    expiresAt: 0,
+  };
+}
+
+function getCachedValue(entry) {
+  return entry.expiresAt > Date.now() ? entry.value : null;
+}
+
+async function withTimedCache(entry, loader, ttlMs = CACHE_TTL_MS) {
+  const cached = getCachedValue(entry);
+  if (cached !== null) return cached;
+
+  const value = await loader();
+  entry.value = value;
+  entry.expiresAt = Date.now() + ttlMs;
+  return value;
 }
 
 async function readRawBody(request) {
@@ -251,6 +298,22 @@ async function withProvider(action) {
   throw lastError ?? new Error('Unable to query Starknet RPC upstream');
 }
 
+async function withAccount(action) {
+  if (!isConfiguredAddress(config.deployerAddress) || !config.deployerPrivateKey) {
+    throw new Error('Faucet signer is not configured');
+  }
+
+  return withProvider(async (provider) => {
+    const account = new Account({
+      provider,
+      address: config.deployerAddress,
+      signer: config.deployerPrivateKey,
+    });
+
+    return action({ provider, account });
+  });
+}
+
 async function getAllEvents(provider, filter) {
   const events = [];
   let continuationToken;
@@ -271,76 +334,84 @@ async function getAllEvents(provider, filter) {
 async function getAuctions() {
   if (!isConfiguredAddress(config.sealedAuction)) return [];
 
-  return withProvider(async (provider) => {
-    const contract = new Contract({
-      abi: abis.sealedAuction,
-      address: config.sealedAuction,
-      providerOrAccount: provider,
-    });
-    const countResult = await contract.call('get_auction_count');
-    const count = Number(countResult);
-    const createdEvents = await getAllEvents(provider, {
-      address: config.sealedAuction,
-      from_block: { block_number: config.startBlock },
-      to_block: 'latest',
-      keys: [[selectors.auctionCreated]],
-    });
-
-    const createdAtById = new Map();
-    for (const event of createdEvents) {
-      const [auctionId, , timestamp] = event.data.map(normalizeHex);
-      createdAtById.set(BigInt(auctionId).toString(), Number(BigInt(timestamp)));
-    }
-
-    const auctions = [];
-    for (let index = 0; index < count; index += 1) {
-      const auctionId = BigInt(index);
-      const auction = await contract.call('get_auction', [auctionId]);
-      const bidCount = await contract.call('get_bid_count', [auctionId]);
-      const reservePrice = await contract.call('get_auction_reserve_price', [auctionId]);
-      const highestBid = await contract.call('get_highest_bid', [auctionId]);
-
-      auctions.push({
-        id: auctionId.toString(),
-        state: parseEnum(auction[0]),
-        commitEnd: Number(auction[1]),
-        revealEnd: Number(auction[2]),
-        creator: normalizeHex(auction[3]),
-        assetId: normalizeHex(auction[4]),
-        bidCount: BigInt(bidCount).toString(),
-        createdAt: createdAtById.get(auctionId.toString()) ?? undefined,
-        reservePrice: parseU256(reservePrice).toString(),
-        currentWinner: normalizeHex(highestBid[0]),
-        currentBid: parseU256(highestBid[1]).toString(),
+  return withTimedCache(caches.auctions, () =>
+    withProvider(async (provider) => {
+      const contract = new Contract({
+        abi: abis.sealedAuction,
+        address: config.sealedAuction,
+        providerOrAccount: provider,
       });
-    }
+      const countResult = await contract.call('get_auction_count');
+      const count = Number(countResult);
+      const createdEvents = await getAllEvents(provider, {
+        address: config.sealedAuction,
+        from_block: { block_number: config.startBlock },
+        to_block: 'latest',
+        keys: [[selectors.auctionCreated]],
+      });
 
-    return auctions;
-  });
+      const createdAtById = new Map();
+      for (const event of createdEvents) {
+        const [auctionId, , timestamp] = event.data.map(normalizeHex);
+        createdAtById.set(BigInt(auctionId).toString(), Number(BigInt(timestamp)));
+      }
+
+      const auctions = [];
+      for (let index = 0; index < count; index += 1) {
+        const auctionId = BigInt(index);
+        const auction = await contract.call('get_auction', [auctionId]);
+        const bidCount = await contract.call('get_bid_count', [auctionId]);
+        const reservePrice = await contract.call('get_auction_reserve_price', [auctionId]);
+        const highestBid = await contract.call('get_highest_bid', [auctionId]);
+
+        auctions.push({
+          id: auctionId.toString(),
+          state: parseEnum(auction[0]),
+          commitEnd: Number(auction[1]),
+          revealEnd: Number(auction[2]),
+          creator: normalizeHex(auction[3]),
+          assetId: normalizeHex(auction[4]),
+          bidCount: BigInt(bidCount).toString(),
+          createdAt: createdAtById.get(auctionId.toString()) ?? undefined,
+          reservePrice: parseU256(reservePrice).toString(),
+          currentWinner: normalizeHex(highestBid[0]),
+          currentBid: parseU256(highestBid[1]).toString(),
+        });
+      }
+
+      return auctions;
+    }),
+  );
 }
 
 async function getOrderFills(limit) {
   if (!isConfiguredAddress(config.darkOrderbook)) return [];
 
-  return withProvider(async (provider) => {
-    const fillEvents = await getAllEvents(provider, {
-      address: config.darkOrderbook,
-      from_block: { block_number: config.startBlock },
-      to_block: 'latest',
-      keys: [[selectors.orderFilled]],
-    });
+  const cacheKey = `${limit}`;
+  const entry = caches.fills.get(cacheKey) ?? createCacheEntry();
+  caches.fills.set(cacheKey, entry);
 
-    return fillEvents
-      .slice(-limit)
-      .reverse()
-      .map((event) => ({
-        orderId: normalizeHex(event.data[0]),
-        fillProof: normalizeHex(event.data[1]),
-        timestamp: Number(BigInt(normalizeHex(event.data[2]))),
-        blockNumber: event.block_number,
-        transactionHash: normalizeHex(event.transaction_hash),
-      }));
-  });
+  return withTimedCache(entry, () =>
+    withProvider(async (provider) => {
+      const fillEvents = await getAllEvents(provider, {
+        address: config.darkOrderbook,
+        from_block: { block_number: config.startBlock },
+        to_block: 'latest',
+        keys: [[selectors.orderFilled]],
+      });
+
+      return fillEvents
+        .slice(-limit)
+        .reverse()
+        .map((event) => ({
+          orderId: normalizeHex(event.data[0]),
+          fillProof: normalizeHex(event.data[1]),
+          timestamp: Number(BigInt(normalizeHex(event.data[2]))),
+          blockNumber: event.block_number,
+          transactionHash: normalizeHex(event.transaction_hash),
+        }));
+    }),
+  );
 }
 
 async function getProof(commitment) {
@@ -349,55 +420,130 @@ async function getProof(commitment) {
   }
 
   const normalizedCommitment = normalizeHex(commitment);
+  const entry = caches.proofs.get(normalizedCommitment) ?? createCacheEntry();
+  caches.proofs.set(normalizedCommitment, entry);
 
-  return withProvider(async (provider) => {
-    const noteEvents = await getAllEvents(provider, {
-      address: config.notePool,
-      from_block: { block_number: config.startBlock },
-      to_block: 'latest',
-      keys: [[selectors.noteDeposited, selectors.noteTransferred]],
-    });
+  return withTimedCache(entry, () =>
+    withProvider(async (provider) => {
+      const noteEvents = await getAllEvents(provider, {
+        address: config.notePool,
+        from_block: { block_number: config.startBlock },
+        to_block: 'latest',
+        keys: [[selectors.noteDeposited, selectors.noteTransferred]],
+      });
 
-    const leaves = [];
-    for (const event of noteEvents) {
-      const selector = normalizeHex(event.keys[0]);
-      if (selector === selectors.noteDeposited) {
-        leaves.push(normalizeHex(event.data[0]));
-      }
-      if (selector === selectors.noteTransferred) {
-        leaves.push(normalizeHex(event.data[1]));
-      }
-    }
-
-    const leafIndex = leaves.findIndex((leaf) => leaf === normalizedCommitment);
-    if (leafIndex === -1) {
-      throw new Error(`Commitment ${normalizedCommitment} not found in note tree`);
-    }
-
-    const proof = [];
-    let currentIndex = leafIndex;
-    let levelNodes = [...leaves];
-
-    for (let level = 0; level < 20; level += 1) {
-      const siblingIndex = currentIndex % 2 === 0 ? currentIndex + 1 : currentIndex - 1;
-      proof.push(levelNodes[siblingIndex] ?? ZERO_VALUE);
-
-      const nextLevel = [];
-      for (let index = 0; index < Math.max(levelNodes.length, 1); index += 2) {
-        const left = levelNodes[index] ?? ZERO_VALUE;
-        const right = levelNodes[index + 1] ?? ZERO_VALUE;
-        nextLevel.push(poseidonPair(left, right));
+      const leaves = [];
+      for (const event of noteEvents) {
+        const selector = normalizeHex(event.keys[0]);
+        if (selector === selectors.noteDeposited) {
+          leaves.push(normalizeHex(event.data[0]));
+        }
+        if (selector === selectors.noteTransferred) {
+          leaves.push(normalizeHex(event.data[1]));
+        }
       }
 
-      levelNodes = nextLevel;
-      currentIndex = Math.floor(currentIndex / 2);
-    }
+      const leafIndex = leaves.findIndex((leaf) => leaf === normalizedCommitment);
+      if (leafIndex === -1) {
+        throw new Error(`Commitment ${normalizedCommitment} not found in note tree`);
+      }
+
+      const proof = [];
+      let currentIndex = leafIndex;
+      let levelNodes = [...leaves];
+
+      for (let level = 0; level < 20; level += 1) {
+        const siblingIndex = currentIndex % 2 === 0 ? currentIndex + 1 : currentIndex - 1;
+        proof.push(levelNodes[siblingIndex] ?? ZERO_VALUE);
+
+        const nextLevel = [];
+        for (let index = 0; index < Math.max(levelNodes.length, 1); index += 2) {
+          const left = levelNodes[index] ?? ZERO_VALUE;
+          const right = levelNodes[index + 1] ?? ZERO_VALUE;
+          nextLevel.push(poseidonPair(left, right));
+        }
+
+        levelNodes = nextLevel;
+        currentIndex = Math.floor(currentIndex / 2);
+      }
+
+      return {
+        commitment: normalizedCommitment,
+        root: levelNodes[0] ?? ZERO_VALUE,
+        proof,
+        indices: leafIndex,
+      };
+    }),
+    60_000,
+  );
+}
+
+async function claimFaucet(payload) {
+  const recipient = normalizeHex(payload.recipient);
+  const tokenAddress = normalizeHex(payload.tokenAddress);
+  const amount = parsePositiveBigInt(payload.amount);
+  if (!isConfiguredAddress(recipient)) {
+    throw new Error('Recipient address is invalid');
+  }
+
+  const faucetToken = getFaucetTokenConfig(tokenAddress);
+  if (!faucetToken) {
+    throw new Error('Requested faucet token is not supported');
+  }
+  if (amount > faucetToken.maxAmount) {
+    throw new Error(
+      `Requested amount exceeds the faucet limit for ${faucetToken.symbol}.`,
+    );
+  }
+
+  const cooldownKey = `${recipient.toLowerCase()}:${tokenAddress.toLowerCase()}`;
+  const lastClaimAt = caches.faucetClaims.get(cooldownKey) ?? 0;
+  if (Date.now() - lastClaimAt < config.faucetCooldownMs) {
+    throw new Error('Faucet cooldown active. Please wait before requesting more liquidity.');
+  }
+
+  return withAccount(async ({ provider, account }) => {
+    const result = await account.execute([
+      {
+        contractAddress: tokenAddress,
+        entrypoint: 'transfer',
+        calldata: [recipient, ...toUint256Calldata(amount)],
+      },
+    ]);
+
+    await provider.waitForTransaction(result.transaction_hash);
+    caches.faucetClaims.set(cooldownKey, Date.now());
 
     return {
-      commitment: normalizedCommitment,
-      root: levelNodes[0] ?? ZERO_VALUE,
-      proof,
-      indices: leafIndex,
+      ok: true,
+      transactionHash: normalizeHex(result.transaction_hash),
+      recipient,
+      tokenAddress,
+      amount: amount.toString(),
     };
   });
+}
+
+function parsePositiveBigInt(value) {
+  const amount = BigInt(value);
+  if (amount <= 0n) {
+    throw new Error('Amount must be greater than zero');
+  }
+  return amount;
+}
+
+function toUint256Calldata(value) {
+  const lowMask = (1n << 128n) - 1n;
+  return [(value & lowMask).toString(), (value >> 128n).toString()];
+}
+
+function getFaucetTokenConfig(tokenAddress) {
+  const normalized = tokenAddress.toLowerCase();
+  if (normalized === config.wbtc.toLowerCase()) {
+    return { symbol: 'WBTC', maxAmount: DEFAULT_FAUCET_LIMITS.WBTC };
+  }
+  if (normalized === config.usdc.toLowerCase()) {
+    return { symbol: 'USDC', maxAmount: DEFAULT_FAUCET_LIMITS.USDC };
+  }
+  return null;
 }

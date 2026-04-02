@@ -4,9 +4,10 @@ import type { AuctionItem } from '../../types';
 import StatusBadge from '../shared/StatusBadge';
 import { useDarkBTCStore } from '../../store';
 import BidModal from './BidModal';
+import { useAdvancePhase } from '../../hooks/useSealedAuction';
 import { AUCTION_DEPOSIT_TOKEN } from '../../constants/contracts';
 import { TOKEN_MAP } from '../../constants/tokens';
-import { feltToText, formatTokenAmount } from '../../lib/starknet';
+import { extractErrorMessage, feltToText, formatTokenAmount } from '../../lib/starknet';
 
 interface AuctionCardProps {
   auction: AuctionItem;
@@ -36,6 +37,11 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
   const hasCommitted = !!getBidSecret(auction.id);
   const marketToken = TOKEN_MAP[auction.assetId.toLowerCase()];
   const depositToken = TOKEN_MAP[AUCTION_DEPOSIT_TOKEN.toLowerCase()];
+  const {
+    mutateAsync: advancePhase,
+    isPending: advancing,
+    error: advanceError,
+  } = useAdvancePhase();
   const marketLabel =
     marketToken?.symbol ||
     feltToText(auction.assetId) ||
@@ -44,9 +50,13 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
   const activeTarget =
     auction.state === 'CommitPhase' ? auction.commitEnd : auction.revealEnd;
   const countdown = useCountdown(activeTarget);
+  const now = Date.now() / 1000;
+  const commitExpired = auction.state === 'CommitPhase' && now >= auction.commitEnd;
+  const revealExpired = auction.state === 'RevealPhase' && now >= auction.revealEnd;
 
-  const canBid = auction.state === 'CommitPhase';
+  const canBid = auction.state === 'CommitPhase' && !commitExpired;
   const canReveal = auction.state === 'RevealPhase' && hasCommitted;
+  const canAdvance = commitExpired || revealExpired;
 
   return (
     <div className="rounded-xl bg-gray-800/50 border border-gray-700 p-5 space-y-4 hover:border-gray-600 transition-colors">
@@ -100,6 +110,25 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
         >
           {canReveal ? 'Reveal Bid' : 'Place Bid'}
         </button>
+      )}
+
+      {canAdvance && (
+        <button
+          type="button"
+          onClick={() => void advancePhase({ auctionId: auction.id })}
+          disabled={advancing}
+          className="w-full rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {advancing
+            ? 'Advancing…'
+            : commitExpired
+              ? 'Advance To Reveal'
+              : 'Settle Auction'}
+        </button>
+      )}
+
+      {advanceError && (
+        <p className="text-xs text-rose-300">{extractErrorMessage(advanceError)}</p>
       )}
 
       {bidModalOpen && (

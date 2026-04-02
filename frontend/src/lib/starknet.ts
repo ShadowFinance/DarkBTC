@@ -1,4 +1,5 @@
 import { RpcProvider } from 'starknet';
+import type { HexString } from '../types';
 
 export function getProvider(): RpcProvider {
   const rpcUrl = (import.meta.env.VITE_RPC_URL as string | undefined) ?? '/rpc';
@@ -39,7 +40,13 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
 }
 
 export function parseTokenAmount(value: string, decimals: number): bigint {
-  const [whole, fraction = ''] = value.split('.');
+  const normalized = value.trim();
+  if (!normalized || normalized === '.') return 0n;
+  if (!/^\d*(\.\d*)?$/.test(normalized)) {
+    throw new Error('Enter a valid amount');
+  }
+
+  const [whole, fraction = ''] = normalized.split('.');
   const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
   return BigInt(whole || '0') * 10n ** BigInt(decimals) + BigInt(paddedFraction || '0');
 }
@@ -60,4 +67,36 @@ export function feltToText(value: bigint | string): string {
     .trim();
 
   return text && /^[\x20-\x7E]+$/.test(text) ? text : '';
+}
+
+export async function waitForTransaction(hash: HexString): Promise<void> {
+  await getProvider().waitForTransaction(hash);
+}
+
+export function parseU256FromCallResult(values: Array<bigint | string | number>): bigint {
+  if (values.length < 2) return 0n;
+  return parseU256({ low: values[0], high: values[1] });
+}
+
+export function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    const revertedMatch = message.match(/Error message:\s*(.+)$/s);
+    if (revertedMatch?.[1]) {
+      return revertedMatch[1].trim();
+    }
+
+    const rejectionMatch = message.match(/Requested resource not found/i);
+    if (rejectionMatch) {
+      return 'Wallet request was rejected.';
+    }
+
+    return message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return 'Something went wrong while talking to Starknet.';
 }

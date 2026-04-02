@@ -2,7 +2,14 @@ import React from 'react';
 import { useAccount } from '@starknet-react/core';
 import { FlaskConical, Droplets, Coins, ArrowRight } from 'lucide-react';
 import { TOKENS } from '../constants/tokens';
-import { isConfiguredAddress, parseTokenAmount, shortenAddress } from '../lib/starknet';
+import { useTokenBalance } from '../hooks/useTokenBalance';
+import {
+  extractErrorMessage,
+  formatTokenAmount,
+  isConfiguredAddress,
+  parseTokenAmount,
+  shortenAddress,
+} from '../lib/starknet';
 import { useTokenFaucet } from '../hooks/useTokenFaucet';
 
 const PRESET_AMOUNTS: Record<string, string[]> = {
@@ -28,6 +35,7 @@ function TokenFaucetCard({
 }) {
   const [amount, setAmount] = React.useState(PRESET_AMOUNTS[symbol]?.[1] ?? '1');
   const { address: walletAddress } = useAccount();
+  const { data: walletBalance } = useTokenBalance(address);
   const faucetMint = useTokenFaucet();
 
   const isReady = isConfiguredAddress(address) && !!walletAddress;
@@ -96,6 +104,12 @@ function TokenFaucetCard({
             <span>Token contract</span>
             <span className="font-mono text-xs text-white/60">{shortenAddress(address)}</span>
           </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span>Wallet balance</span>
+            <span className="font-mono text-xs text-white/85">
+              {formatTokenAmount(walletBalance ?? 0n, decimals)} {symbol}
+            </span>
+          </div>
         </div>
 
         <button
@@ -109,7 +123,7 @@ function TokenFaucetCard({
         </button>
 
         {faucetMint.error && (
-          <p className="text-sm text-rose-300">{faucetMint.error.message}</p>
+          <p className="text-sm text-rose-300">{extractErrorMessage(faucetMint.error)}</p>
         )}
       </div>
     </div>
@@ -130,15 +144,15 @@ export default function FaucetPage() {
           <div className="relative max-w-3xl space-y-5">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs uppercase tracking-[0.24em] text-amber-300">
               <FlaskConical size={14} />
-              Unlimited Test Liquidity
+              Starknet Sepolia Liquidity
             </div>
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold text-white sm:text-4xl">
                 Mint WBTC and USDC on Starknet Sepolia in one click.
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-gray-300">
-                This faucet is wired for DarkBTC test tokens so anyone can top up a wallet, shield
-                funds, and move straight into swaps, auctions, and private order flow.
+                Use the live faucet contracts to provision wallet liquidity, shield fresh notes, and
+                move straight into private swaps, auctions, and dark order entry.
               </p>
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-gray-300">
@@ -163,7 +177,7 @@ export default function FaucetPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-gray-500">How To Use</p>
             <div className="mt-5 space-y-4">
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
-                <p className="text-sm font-medium text-white">1. Mint test tokens</p>
+                <p className="text-sm font-medium text-white">1. Mint Starknet liquidity</p>
                 <p className="mt-1 text-sm text-gray-400">
                   Choose a preset or enter any amount. The faucet sends tokens to your connected wallet.
                 </p>
@@ -183,7 +197,7 @@ export default function FaucetPage() {
               <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
                 <p className="text-sm font-medium text-white">3. Test the full flow</p>
                 <p className="mt-1 text-sm text-gray-400">
-                  Use fresh WBTC/USDC to test swaps, auctions, and orderbook interactions without limits.
+                  Use fresh WBTC and USDC to move through the full DarkBTC flow without manual funding.
                 </p>
               </div>
             </div>
@@ -193,7 +207,7 @@ export default function FaucetPage() {
         {faucetTokens.length === 0 && (
           <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-200">
             Faucet tokens are not configured yet. Set valid `VITE_WBTC_ADDRESS` and `VITE_USDC_ADDRESS`
-            values after deploying the faucet-enabled mock tokens.
+            values after deploying the Starknet Sepolia token contracts.
           </div>
         )}
       </div>

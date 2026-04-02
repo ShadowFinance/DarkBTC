@@ -1,9 +1,9 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSendTransaction } from '@starknet-react/core';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashOrderCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { isConfiguredAddress } from '../lib/starknet';
+import { extractErrorMessage, isConfiguredAddress, waitForTransaction } from '../lib/starknet';
 import type { HexString, OrderFill } from '../types';
 
 interface SubmitOrderParams {
@@ -17,6 +17,7 @@ interface SubmitOrderParams {
 
 export function useSubmitOrder() {
   const { account } = useAccount();
+  const queryClient = useQueryClient();
   const { addOrder, addPendingTx, removePendingTx } = useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
 
@@ -33,6 +34,9 @@ export function useSubmitOrder() {
       if (!isConfiguredAddress(CONTRACT_ADDRESSES.DARK_ORDERBOOK)) {
         throw new Error('Dark orderbook is not configured');
       }
+      if (amount <= 0n) throw new Error('Enter a valid order size');
+      if (price <= 0n) throw new Error('Enter a valid limit price');
+      if (collateralAmount <= 0n) throw new Error('Collateral must be greater than zero');
 
       const secret = generateSecret();
       const sideVal: 0n | 1n = side === 'Buy' ? 0n : 1n;
@@ -56,29 +60,40 @@ export function useSubmitOrder() {
         ],
       };
 
-      const result = await sendAsync([approveCall, submitCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Submit Order', timestamp: Date.now() });
+      try {
+        const result = await sendAsync([approveCall, submitCall]);
+        const txHash = result.transaction_hash as HexString;
+        addPendingTx({ hash: txHash, description: 'Submit order', timestamp: Date.now() });
 
-      addOrder({
-        orderId: bigIntToHex(orderCommitment),
-        side,
-        assetId,
-        amount,
-        price,
-        secret: bigIntToHex(secret),
-        isFilled: false,
-        isCancelled: false,
-        timestamp: Date.now(),
-      });
-
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+        try {
+          await waitForTransaction(txHash);
+          addOrder({
+            orderId: bigIntToHex(orderCommitment),
+            side,
+            assetId,
+            amount,
+            price,
+            secret: bigIntToHex(secret),
+            isFilled: false,
+            isCancelled: false,
+            timestamp: Date.now(),
+          });
+          await queryClient.invalidateQueries({ queryKey: ['recent_fills'] });
+          await queryClient.invalidateQueries({ queryKey: ['token_balance'] });
+          return result;
+        } finally {
+          removePendingTx(txHash);
+        }
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }
 
 export function useCancelOrder() {
   const { account } = useAccount();
+  const queryClient = useQueryClient();
   const { myOrders, markOrderCancelled, addPendingTx, removePendingTx } = useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
 
@@ -91,6 +106,8 @@ export function useCancelOrder() {
 
       const order = myOrders.find((o) => o.orderId === orderId);
       if (!order) throw new Error('Order not found');
+      if (order.isFilled) throw new Error('This order has already been filled');
+      if (order.isCancelled) throw new Error('This order has already been cancelled');
 
       const cancelProof = hashNullifier(BigInt(order.secret), BigInt(orderId));
 
@@ -100,11 +117,23 @@ export function useCancelOrder() {
         calldata: [orderId, bigIntToHex(cancelProof)],
       };
 
-      const result = await sendAsync([cancelCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Cancel Order', timestamp: Date.now() });
-      markOrderCancelled(orderId);
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+      try {
+        const result = await sendAsync([cancelCall]);
+        const txHash = result.transaction_hash as HexString;
+        addPendingTx({ hash: txHash, description: 'Cancel order', timestamp: Date.now() });
+
+        try {
+          await waitForTransaction(txHash);
+          markOrderCancelled(orderId);
+          await queryClient.invalidateQueries({ queryKey: ['recent_fills'] });
+          await queryClient.invalidateQueries({ queryKey: ['token_balance'] });
+          return result;
+        } finally {
+          removePendingTx(txHash);
+        }
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }

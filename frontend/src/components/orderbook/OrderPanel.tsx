@@ -1,9 +1,15 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import { useSubmitOrder } from '../../hooks/useDarkOrderbook';
+import { useTokenBalance } from '../../hooks/useTokenBalance';
 import { TOKENS } from '../../constants/tokens';
 import type { Token } from '../../types';
-import { isConfiguredAddress, parseTokenAmount } from '../../lib/starknet';
+import {
+  extractErrorMessage,
+  formatTokenAmount,
+  isConfiguredAddress,
+  parseTokenAmount,
+} from '../../lib/starknet';
 import TokenInput from '../shared/TokenInput';
 
 export default function OrderPanel() {
@@ -13,8 +19,14 @@ export default function OrderPanel() {
   const [assetToken, setAssetToken] = React.useState<Token>(assetOptions[0] ?? TOKENS[0]);
   const [amount, setAmount] = React.useState('');
   const [price, setPrice] = React.useState('');
+  const { data: assetWalletBalance } = useTokenBalance(assetToken.address);
+  const { data: collateralWalletBalance } = useTokenBalance(collateralToken.address);
 
-  const { mutateAsync: submitOrder, isPending } = useSubmitOrder();
+  const {
+    mutateAsync: submitOrder,
+    isPending,
+    error,
+  } = useSubmitOrder();
 
   const collateralAmount =
     amount && price
@@ -88,11 +100,23 @@ export default function OrderPanel() {
 
       {/* Collateral preview */}
       {collateralAmount > 0n && (
-        <div className="text-xs text-gray-500">
-          Required collateral:{' '}
-          <span className="text-white font-mono">
-            {(Number(collateralAmount) / 10 ** collateralToken.decimals).toFixed(2)} {collateralToken.symbol}
-          </span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3 text-xs text-gray-400">
+            <p className="uppercase tracking-wide text-gray-500">Selected asset balance</p>
+            <p className="mt-1 font-mono text-sm text-white">
+              {formatTokenAmount(assetWalletBalance ?? 0n, assetToken.decimals)} {assetToken.symbol}
+            </p>
+          </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3 text-xs text-gray-400">
+            <p className="uppercase tracking-wide text-gray-500">Escrow collateral</p>
+            <p className="mt-1 font-mono text-sm text-white">
+              {formatTokenAmount(collateralAmount, collateralToken.decimals)} {collateralToken.symbol}
+            </p>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Wallet: {formatTokenAmount(collateralWalletBalance ?? 0n, collateralToken.decimals)}{' '}
+              {collateralToken.symbol}
+            </p>
+          </div>
         </div>
       )}
 
@@ -106,6 +130,10 @@ export default function OrderPanel() {
       >
         {isPending ? 'Submitting…' : `Submit ${side} Order`}
       </button>
+
+      {error && (
+        <p className="text-sm text-rose-300">{extractErrorMessage(error)}</p>
+      )}
     </div>
   );
 }

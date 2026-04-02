@@ -2,9 +2,14 @@ import React from 'react';
 import { Copy, Check, ShieldAlert } from 'lucide-react';
 import Modal from '../shared/Modal';
 import { useCommitBid, useRevealBid } from '../../hooks/useSealedAuction';
+import { useTokenBalance } from '../../hooks/useTokenBalance';
 import { useDarkBTCStore } from '../../store';
 import type { AuctionItem } from '../../types';
-import { formatTokenAmount, parseTokenAmount } from '../../lib/starknet';
+import {
+  extractErrorMessage,
+  formatTokenAmount,
+  parseTokenAmount,
+} from '../../lib/starknet';
 import { AUCTION_DEPOSIT_TOKEN } from '../../constants/contracts';
 import { TOKEN_MAP } from '../../constants/tokens';
 
@@ -18,13 +23,22 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
   const [amount, setAmount] = React.useState('');
   const [copied, setCopied] = React.useState(false);
   const depositToken = TOKEN_MAP[AUCTION_DEPOSIT_TOKEN.toLowerCase()];
+  const { data: depositBalance } = useTokenBalance(AUCTION_DEPOSIT_TOKEN);
 
   const { getBidSecret } = useDarkBTCStore();
   const bidSecret = getBidSecret(auction.id);
   const isRevealPhase = auction.state === 'RevealPhase';
 
-  const { mutateAsync: commitBid, isPending: committing } = useCommitBid();
-  const { mutateAsync: revealBid, isPending: revealing } = useRevealBid();
+  const {
+    mutateAsync: commitBid,
+    isPending: committing,
+    error: commitError,
+  } = useCommitBid();
+  const {
+    mutateAsync: revealBid,
+    isPending: revealing,
+    error: revealError,
+  } = useRevealBid();
 
   async function handleCommit() {
     if (!amount || !depositToken || auction.reservePrice === undefined) return;
@@ -95,9 +109,13 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
         <div className="space-y-4">
           {auction.reservePrice !== undefined && depositToken && (
             <div className="p-3 rounded-lg bg-gray-800 border border-gray-700">
-              <p className="text-xs text-gray-500 mb-1">Minimum reserve deposit</p>
+              <p className="text-xs text-gray-500 mb-1">Reserve escrow</p>
               <p className="font-mono text-lg text-white">
                 {formatTokenAmount(auction.reservePrice, depositToken.decimals)} {depositToken.symbol}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Wallet balance: {formatTokenAmount(depositBalance ?? 0n, depositToken.decimals)}{' '}
+                {depositToken.symbol}
               </p>
             </div>
           )}
@@ -118,7 +136,7 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
           <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-900/20 border border-amber-700/30 text-xs text-amber-400">
             <ShieldAlert size={14} className="shrink-0 mt-0.5" />
             <span>
-              A secret will be generated and saved locally. You must keep it to reveal your bid. Never share it.
+              A secret will be generated and saved locally. You need that secret to reveal your bid on-chain, so keep it private.
             </span>
           </div>
 
@@ -129,7 +147,15 @@ export default function BidModal({ auction, open, onClose }: BidModalProps) {
           >
             {committing ? 'Submitting…' : 'Submit Sealed Bid'}
           </button>
+
+          {commitError && (
+            <p className="text-sm text-rose-300">{extractErrorMessage(commitError)}</p>
+          )}
         </div>
+      )}
+
+      {isRevealPhase && revealError && (
+        <p className="text-sm text-rose-300">{extractErrorMessage(revealError)}</p>
       )}
     </Modal>
   );

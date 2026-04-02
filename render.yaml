@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: darkbtc-indexer
+    env: node
+    plan: free
+    autoDeploy: true
+    buildCommand: cd indexer && npm install
+    startCommand: cd indexer && npm start
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - indexer/**
+        - abis/**
+        - deployments/**
+    envVars:
+      - key: INDEXER_HOST
+        value: 0.0.0.0
+      - key: RPC_UPSTREAMS
+        value: https://api.cartridge.gg/x/starknet/sepolia
+      - key: VITE_NOTE_POOL_ADDRESS
+        value: 0x5627a60f4511c403babe3092170d0208627cd4bc5a914fd6cd42aa705fb9a52
+      - key: VITE_SHIELDED_SWAP_ADDRESS
+        value: 0xf212bfaeef11e9b6354fdb60c0d2b8598f71eb14605ee113ef9bc85d678cea
+      - key: VITE_SEALED_AUCTION_ADDRESS
+        value: 0x5b5afb9515f30cec544001ff1be117560c5050d0178d7c21f578ccf7f2667ff
+      - key: VITE_DARK_ORDERBOOK_ADDRESS
+        value: 0x4c6698f7279fad2e0722483e31333c38599d68f7db4e5de25a8013ce55ebe3a

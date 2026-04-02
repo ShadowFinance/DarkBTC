@@ -1,10 +1,16 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSendTransaction } from '@starknet-react/core';
 import { Contract, type Abi } from 'starknet';
 import { CONTRACT_ADDRESSES, INDEXER_URL } from '../constants/contracts';
 import { generateSecret, hashNoteCommitment, hashNullifier, bigIntToHex } from '../lib/poseidon';
 import { useDarkBTCStore } from '../store';
-import { getProvider, isConfiguredAddress, parseU256 } from '../lib/starknet';
+import {
+  extractErrorMessage,
+  getProvider,
+  isConfiguredAddress,
+  parseU256,
+  waitForTransaction,
+} from '../lib/starknet';
 import type { HexString, SwapQuote } from '../types';
 import shieldedSwapAbiJson from '../abis/shielded_swap.json';
 
@@ -56,6 +62,7 @@ export function useSwapQuote(assetIn: HexString, assetOut: HexString, amountIn: 
 
 export function useExecuteSwap() {
   const { account } = useAccount();
+  const queryClient = useQueryClient();
   const { getUnspentNotes, markNoteSpent, addNote, addPendingTx, removePendingTx } =
     useDarkBTCStore();
   const { sendAsync } = useSendTransaction({});
@@ -70,11 +77,21 @@ export function useExecuteSwap() {
       deadline,
     }: SwapParams) => {
       if (!account) throw new Error('Wallet not connected');
+      if (!isConfiguredAddress(CONTRACT_ADDRESSES.SHIELDED_SWAP)) {
+        throw new Error('Shielded swap is not configured');
+      }
+      if (amountIn <= 0n) throw new Error('Enter an amount greater than zero');
+      if (expectedAmountOut <= 0n) throw new Error('No executable quote available');
 
       const unspentNotes = getUnspentNotes(assetIn);
       if (unspentNotes.length === 0) throw new Error('No unspent notes for input asset');
 
-      const inputNote = unspentNotes[0];
+      const inputNote = unspentNotes.find((note) => note.amount === amountIn);
+      if (!inputNote) {
+        throw new Error(
+          'Swaps require an exact-size shielded note. Deposit the exact amount you want to swap first.',
+        );
+      }
 
       const proofRes = await fetch(`${INDEXER_URL}/proof/${inputNote.commitment}`);
       if (!proofRes.ok) throw new Error('Failed to fetch Merkle proof');
@@ -112,23 +129,33 @@ export function useExecuteSwap() {
         ],
       };
 
-      const result = await sendAsync([swapCall]);
-      addPendingTx({ hash: result.transaction_hash as HexString, description: 'Swap', timestamp: Date.now() });
+      try {
+        const result = await sendAsync([swapCall]);
+        const txHash = result.transaction_hash as HexString;
+        addPendingTx({ hash: txHash, description: 'Shielded swap', timestamp: Date.now() });
 
-      markNoteSpent(inputNote.commitment);
-      addNote({
-        commitment: bigIntToHex(outputCommitment),
-        nullifier: bigIntToHex(outputNullifier),
-        secret: bigIntToHex(outputSecret),
-        assetAddress: assetOut,
-        amount: expectedAmountOut,
-        leafIndex: 0,
-        spent: false,
-        createdAt: Date.now(),
-      });
-
-      removePendingTx(result.transaction_hash as HexString);
-      return result;
+        try {
+          await waitForTransaction(txHash);
+          markNoteSpent(inputNote.commitment);
+          addNote({
+            commitment: bigIntToHex(outputCommitment),
+            nullifier: bigIntToHex(outputNullifier),
+            secret: bigIntToHex(outputSecret),
+            assetAddress: assetOut,
+            amount: expectedAmountOut,
+            leafIndex: 0,
+            spent: false,
+            createdAt: Date.now(),
+          });
+          await queryClient.invalidateQueries({ queryKey: ['pool_reserves'] });
+          await queryClient.invalidateQueries({ queryKey: ['swap_quote'] });
+          return result;
+        } finally {
+          removePendingTx(txHash);
+        }
+      } catch (error) {
+        throw new Error(extractErrorMessage(error));
+      }
     },
   });
 }

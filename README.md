@@ -1,438 +1,285 @@
 # DarkBTC
 
-DarkBTC is a Starknet-native privacy trading sandbox that combines a shielded note pool, a private AMM, a sealed-bid auction, and a dark orderbook in one codebase. The repository also includes a lightweight event indexer, Sepolia deployment tooling, seed scripts, and faucet-enabled mock tokens for running the full flow on testnet or local devnet.
+DarkBTC is a Starknet-native privacy execution layer for Bitcoin-denominated trading flows. It combines shielded note deposits, private BTC swaps, sealed-bid auctions, and a dark order entry flow into one end-to-end application built for the PL Genesis: Frontier of Collaboration Hackathon 2026 Starknet track.
 
-The current branch is focused on Starknet Sepolia and developer ergonomics. It is not a production-ready privacy exchange yet, but it is a useful end-to-end prototype for private note handling, swap quoting, auction orchestration, dark order submission, and event-derived indexing.
+Live app: https://dark-btc.vercel.app  
+Indexer API: https://darkbtc-indexer.onrender.com
 
-## Status
+## Why DarkBTC Fits The Starknet Track
 
-- Network target: Starknet Sepolia and local Starknet devnet.
-- Frontend routes: `/`, `/auction`, `/orderbook`, `/portfolio`, `/faucet`.
-- Contracts and live addresses are tracked in `deployments/sepolia.json`.
-- The recommended deployment path is `scripts/deploy.mjs`, `scripts/seed.mjs`, and `scripts/faucet.mjs`.
-- Testnet only. Several core flows still stop short of full production settlement semantics.
+The Starknet track asks for privacy-preserving Bitcoin applications that use Starknet or zero-knowledge infrastructure in a meaningful way. DarkBTC is built around that exact premise:
 
-## What DarkBTC Includes
+- Private swap flow: users convert BTC exposure without publishing order intent or trade amounts in the UI flow.
+- Shielded note pool: assets are moved into opaque commitments before execution.
+- Sealed-bid auctions: bids remain hidden during the commit phase and are only revealed later by the bidder.
+- Dark order entry: order side, amount, and price are committed off-chain first and only opaque commitments are posted on-chain.
+- Starknet-native implementation: the system is written in Cairo, deployed on Starknet Sepolia, and surfaced through a production web application plus indexer.
 
-| Module | What it does | Privacy boundary |
-| --- | --- | --- |
-| `NotePool` | Stores shielded note commitments in a Poseidon-based Merkle tree and tracks spent nullifiers. | Amounts are hidden behind commitments; membership is proven with Merkle paths. |
-| `ShieldedSwap` | Executes private swaps against on-chain reserves using note spends and note re-minting. | Input and output notes are opaque on-chain; only commitments and asset addresses are emitted. |
-| `SealedAuction` | Runs commit-reveal auctions over a configured deposit token. | Bid commitments remain hidden until reveal. |
-| `DarkOrderbook` | Stores private order intent as commitments and emits fill hashes. | Order side, size, and price are hidden inside the commitment. |
-| `MockERC20` | Mints faucet-friendly WBTC and USDC for demos and tests. | No privacy, strictly for local and Sepolia testing. |
-| `indexer/server.mjs` | Serves Merkle proofs, auction state, order fills, and an RPC proxy. | Aggregates public chain data; it does not receive note or bid secrets. |
+## Submission Alignment
 
-## Architecture
+### Privacy Innovation
 
-```text
-Wallet
-       |
-       v
-React frontend (Vite, StarknetKit, @starknet-react)
-       |            \
-       | secrets     \ fetch /api and /rpc
-       | stay local   \
-       v               v
-Browser storage   Indexer + RPC proxy
-                                                                       |
-                                                                       v
-                                                  Starknet Sepolia / Devnet
-                                                                       |
-              +----------------+----------------+
-              |                |                |
-              v                v                v
- NotePool       SealedAuction    DarkOrderbook
-              |
-              v
-ShieldedSwap
-```
+DarkBTC hides market intent in multiple ways:
 
-### High-level flow
+- Shielded notes hide deposited trading inventory behind Poseidon commitments.
+- Swaps spend notes rather than public balances in the user experience.
+- Auction bids use commit-reveal instead of transparent live bidding.
+- Dark order entry commits private order details before any fill proof is published.
 
-1. A wallet receives WBTC or USDC, typically through the faucet or a deployment seed script.
-2. The frontend shields funds into `NotePool` by generating a local secret and a Poseidon commitment.
-3. The user spends notes through `ShieldedSwap`, participates in `SealedAuction`, or posts commitments to `DarkOrderbook`.
-4. The indexer derives public state from events and contract reads so the UI can render auctions, fills, and Merkle proofs.
-5. Secrets remain local to the browser through Zustand persistence and are never sent to the indexer or RPC provider.
+### Technical Execution
 
-## Repository Layout
+This repository ships a complete working stack:
 
-```text
-abis/                  Synced contract ABIs used by scripts and the indexer
-contracts/             Cairo contracts, utilities, and tests
-deployments/           Committed network deployment manifests
-frontend/              React/Vite application
-indexer/               Lightweight Node HTTP indexer and RPC proxy
-scripts/               Sepolia deployment, seeding, and faucet utilities
-docker-compose.yml     Devnet + indexer + frontend local stack
-```
+- Cairo contracts for the note pool, swap engine, sealed auction, and dark orderbook.
+- A React/Vite frontend with wallet integration and production-safe transaction handling.
+- A Node indexer and RPC proxy used by the frontend for proofs, fills, auctions, and faucet execution.
+- Sepolia deployment tooling, seed tooling, and a reproducible smoke-test script.
 
-## Protocol Model
+### Integration With Starknet
 
-### Note commitments
+DarkBTC uses Starknet directly rather than treating it as a generic hosting layer:
 
-Frontend note commitments follow the helper in `frontend/src/lib/poseidon.ts`:
+- Contracts are written in Cairo.
+- Commitments and Merkle paths are Poseidon-based.
+- The app integrates with Starknet wallets through `starknetkit` and `@starknet-react`.
+- All protocol state is deployed to Starknet Sepolia and queried live.
 
-```text
-note_commitment = Poseidon(
-       secret,
-       amount.low,
-       amount.high,
-       asset_id,
-       nonce,
-       domain("DARKBTC_NOTE")
-)
-```
+### Usability And Design
 
-The nullifier used to spend a note is:
+The frontend is designed around live execution rather than mock flows:
+
+- Wallet balances are surfaced where users need them.
+- Swap execution only enables exact-size shielded notes, matching current contract behavior safely.
+- Expired auctions can be advanced from the UI.
+- The faucet now uses a real treasury-backed backend route instead of assuming a nonexistent token mint entrypoint.
+
+### Potential Impact
+
+DarkBTC is aimed at a real problem: privacy for BTC-denominated market activity. If extended from Sepolia to production infrastructure, the same architecture can support:
+
+- Private BTC swaps
+- Private OTC and block-style execution
+- Sealed liquidation or collateral auctions
+- Shielded trading intents for institutions, treasury desks, and privacy-sensitive individuals
+
+## What Works Right Now
+
+The current deployment has been verified against Starknet Sepolia:
+
+- Faucet liquidity requests through the indexer-backed faucet route
+- Shield deposits into `NotePool`
+- Shielded WBTC to USDC swap execution
+- Dark order submission
+- Sealed bid commitment
+- Auction discovery and phase advancement
+- Order fill indexing
+- Merkle proof generation for deposited notes
+
+In addition, `scripts/smoke.mjs` successfully exercised the live contracts and created a fresh active auction on Sepolia during verification.
+
+## Production Architecture
 
 ```text
-nullifier = Poseidon(secret, commitment, domain("DARKBTC_NULLIFIER"))
+User Wallet
+    |
+    v
+DarkBTC Frontend (Vercel)
+    |
+    +--> /rpc  ----------+
+    |                    |
+    +--> /api ---------->|  DarkBTC Indexer (Render)
+                         |    - proof generation
+                         |    - auction/fill indexing
+                         |    - treasury-backed faucet
+                         |    - Starknet RPC proxy
+                         v
+                    Starknet Sepolia
+                         |
+     +-------------------+--------------------+
+     |                   |                    |
+     v                   v                    v
+  NotePool         ShieldedSwap        SealedAuction
+                         |
+                         v
+                   DarkOrderbook
 ```
 
-`NotePool` stores commitments in a Poseidon Merkle tree with `TREE_DEPTH = 20`, which gives a maximum depth of 20 sibling hashes per proof and a theoretical capacity of `2^20` leaves.
+## Core Modules
 
-### Bid commitments
-
-The auction commitment helper is:
-
-```text
-bid_commitment = Poseidon(
-       amount.low,
-       amount.high,
-       secret,
-       domain("DARKBTC_BID")
-)
-```
-
-### Order commitments
-
-The orderbook commitment helper is:
-
-```text
-order_commitment = Poseidon(
-       side,
-       amount.low,
-       amount.high,
-       price.low,
-       price.high,
-       secret,
-       domain("DARKBTC_ORDER")
-)
-```
-
-### Event visibility
-
-DarkBTC tries to keep amounts, prices, and intent out of event payloads. In the current implementation:
-
-- `NotePool` emits note commitments, nullifiers, recipient on withdrawal, and timestamps.
-- `ShieldedSwap` emits input and output commitments plus assets and timestamps.
-- `SealedAuction` emits auction IDs, bid commitments, state transitions, and winning metadata.
-- `DarkOrderbook` emits opaque order IDs, fill proof hashes, and timestamps.
-
-## Contracts
-
-| Contract | Key entrypoints | Notes |
-| --- | --- | --- |
-| `contracts/src/note_pool.cairo` | `deposit`, `withdraw`, `transfer_note`, `get_merkle_root`, `get_tree_size`, `is_nullifier_spent`, `is_known_root`, `add_supported_asset` | Tracks supported assets, pool balances, nullifiers, commitments, and root history. |
-| `contracts/src/shielded_swap.cairo` | `add_shielded_liquidity`, `remove_shielded_liquidity`, `swap`, `get_reserves`, `get_swap_quote` | Uses `NotePool` as the privacy boundary and charges a 30 bps fee. |
-| `contracts/src/sealed_auction.cairo` | `create_auction`, `commit_bid`, `reveal_bid`, `advance_phase`, `settle_auction`, `cancel_auction`, `get_highest_bid` | Owner creates auctions, bidders commit with the configured deposit token, then reveal later. |
-| `contracts/src/dark_orderbook.cairo` | `submit_order`, `fill_order`, `cancel_order`, `get_order_status`, `get_recent_fills` | Stores private order commitments and a rolling fill log. |
-| `contracts/src/mock_erc20.cairo` | `mint` and the embedded ERC20 interface | Test token only. Public mint is intentional for demos and faucet use. |
-
-## Frontend
-
-The frontend lives in `frontend/` and uses:
-
-- React 18
-- TypeScript 5
-- Vite 5
-- `starknet` 8.9.0
-- `starknetkit` 3.4.3
-- `@starknet-react/core` 5.0.3
-- `@starknet-react/chains` 5.0.3
-- Zustand and React Query for local state and async caching
-
-### Current pages
-
-| Route | Purpose |
+| Module | Purpose |
 | --- | --- |
-| `/` | Private swap flow with swap panel and shield deposit panel |
-| `/auction` | Sealed-bid auctions and bid/reveal interactions |
-| `/orderbook` | Recent fill activity and private order submission |
-| `/portfolio` | Local note inventory, pending transactions, and balances |
-| `/faucet` | Mint WBTC and USDC test tokens on Sepolia |
+| `contracts/src/note_pool.cairo` | Stores shielded commitments, roots, nullifiers, and supported assets |
+| `contracts/src/shielded_swap.cairo` | Private swap engine over shielded inventory |
+| `contracts/src/sealed_auction.cairo` | Commit-reveal auction system for BTC-denominated markets |
+| `contracts/src/dark_orderbook.cairo` | Private order submission and fill logging |
+| `frontend/` | Wallet-connected trading application |
+| `indexer/` | Proof service, RPC proxy, auction/fill API, and faucet backend |
+| `scripts/` | Deployment, seeding, faucet funding, and Sepolia smoke verification |
 
-### Wallet connectors
+## Live Contracts
 
-`frontend/src/lib/wallet.ts` currently wires:
+### Protocol
 
-- Cartridge controller connector
-- Argent X injected connector
-- Braavos injected connector
-- Ready web wallet connector
+- `NotePool`: `0x5627a60f4511c403babe3092170d0208627cd4bc5a914fd6cd42aa705fb9a52`
+- `ShieldedSwap`: `0xf212bfaeef11e9b6354fdb60c0d2b8598f71eb14605ee113ef9bc85d678cea`
+- `SealedAuction`: `0x5b5afb9515f30cec544001ff1be117560c5050d0178d7c21f578ccf7f2667ff`
+- `DarkOrderbook`: `0x4c6698f7279fad2e0722483e31333c38599d68f7db4e5de25a8013ce55ebe3a`
 
-### Frontend data sources
+### Assets
 
-- Direct contract calls for some quote and balance reads.
-- Indexer-backed HTTP calls for auctions, order fills, and Merkle proofs.
-- Browser-local secrets stored in Zustand persistence.
+- `WBTC`: `0x30da440e0911576918df9523e84a45ae2052589996612f97d2a5724444c3a51`
+- `USDC`: `0x5752cd65bc0d110b8b906883a7c6ec4c919cb5791907a6e978d12d38f15b5f6`
 
-## Indexer and API
+## Frontend Routes
 
-`indexer/server.mjs` is a lightweight Node HTTP service. It does three jobs:
+- `/` - private swap plus shield deposit
+- `/auction` - sealed-bid auction discovery, bid commit, reveal, and phase advancement
+- `/orderbook` - private order entry plus indexed recent fills
+- `/portfolio` - local shielded notes, private orders, and privacy score view
+- `/faucet` - treasury-backed Starknet Sepolia liquidity access
 
-1. Proxies `/rpc` traffic to Starknet upstreams.
-2. Aggregates public chain state for auctions and order fills.
-3. Reconstructs Merkle proofs from `NotePool` events.
+## Important Protocol Behavior
 
-### Available endpoints
+DarkBTC currently enforces a single-note swap model in the frontend for safety:
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /health` | Health check, active upstream, and address-configuration status |
-| `GET /api/auctions` | Auction list derived from contract reads and `AuctionCreated` events |
-| `GET /api/orderbook/fills?limit=50` | Recent order fills with timestamps and tx hashes |
-| `GET /api/proof/<commitment>` | Reconstructed Merkle proof for a note commitment |
-| `POST /rpc` | JSON-RPC passthrough to Starknet upstreams |
+- users shield exact trade sizes into notes
+- swaps spend one note at a time
+- the UI only enables swaps when an exact-size input note exists
 
-### Important implementation detail
-
-The indexer imports `starknet` from `frontend/node_modules/starknet/dist/index.mjs`. That means you should install frontend dependencies before running the indexer locally.
+This matches the current contract execution model and avoids unsafe balance drift in the client.
 
 ## Local Development
 
-There is no root `package.json`, so commands are run from `contracts/`, `frontend/`, `indexer/`, or `scripts/`.
-
-### Prerequisites
+### Requirements
 
 - Node.js 20+
-- `pnpm`
-- Scarb with support for the Cairo toolchain used by `contracts/Scarb.toml`
-- Starknet Foundry compatible with `snforge_std = 0.44.0`
+- npm
+- Scarb
 
-### Install dependencies
+### Install
 
 ```bash
 git clone https://github.com/ShadowFinance/DarkBTC.git
 cd DarkBTC
 
-cd frontend
-corepack enable
-pnpm install
-cd ..
+cd frontend && npm install && cd ..
+cd indexer && npm install && cd ..
+cd contracts && scarb build && cd ..
 ```
 
-### Manual local run
+### Environment
+
+Copy the example file and fill in local values where needed:
 
 ```bash
 cp .env.example .env
-
-# Build Cairo contracts
-cd contracts
-scarb build
-cd ..
-
-# Start the indexer in one terminal
-node indexer/server.mjs
-
-# Start the frontend in another terminal
-cd frontend
-pnpm dev
 ```
 
-With the default configuration:
-
-- frontend runs on `http://localhost:5173`
-- indexer runs on `http://localhost:3001`
-- frontend proxies `/api` and `/rpc` through Vite to the indexer target
-
-### Docker local stack
-
-The repository ships `docker-compose.yml` for a three-service developer stack:
-
-- `devnet`: Starknet devnet
-- `indexer`: Node HTTP indexer with RPC upstream pointing at devnet
-- `frontend`: Vite development server
-
-Run it with:
-
-```bash
-docker compose up --build
-```
-
-By default the compose stack exposes:
-
-- Starknet devnet on `http://localhost:5050`
-- indexer on `http://localhost:3001`
-- frontend on `http://localhost:5173`
-
-## Sepolia Deployment Workflow
-
-The preferred deployment workflow uses the ESM scripts in `scripts/`.
-
-### 1. Prepare environment
-
-Copy `.env.example` to `.env` and fill in at least:
+Key variables:
 
 - `DEPLOYER_PRIVATE_KEY`
 - `DEPLOYER_ADDRESS`
 - `RPC_URL`
+- `RPC_UPSTREAMS`
+- `VITE_NOTE_POOL_ADDRESS`
+- `VITE_SHIELDED_SWAP_ADDRESS`
+- `VITE_SEALED_AUCTION_ADDRESS`
+- `VITE_DARK_ORDERBOOK_ADDRESS`
+- `VITE_WBTC_ADDRESS`
+- `VITE_USDC_ADDRESS`
+- `VITE_AUCTION_DEPOSIT_TOKEN`
 
-If `WBTC_ADDRESS` and `USDC_ADDRESS` are left unset, `scripts/deploy.mjs` deploys faucet-enabled `MockERC20` contracts for both tokens.
+### Run Locally
 
-### 2. Build contracts
+Terminal 1:
+
+```bash
+cd indexer
+npm start
+```
+
+Terminal 2:
+
+```bash
+cd frontend
+npm run dev
+```
+
+## Verification
+
+### Frontend
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+### Contracts
 
 ```bash
 cd contracts
 scarb build
-cd ..
 ```
 
-### 3. Deploy protocol contracts
+### Live Sepolia Smoke
+
+This script verifies the deployed stack by:
+
+- checking treasury balances on the deployer account
+- depositing a shielded WBTC note
+- executing a shielded swap
+- submitting a dark order
+- creating a fresh active auction if needed
+- committing a sealed bid
 
 ```bash
-node scripts/deploy.mjs
+node scripts/smoke.mjs
 ```
 
-This script:
+## Deployment
 
-- syncs ABIs from compiled artifacts into `abis/` and `frontend/src/abis/`
-- declares `MockERC20`, `NotePool`, `ShieldedSwap`, `SealedAuction`, and `DarkOrderbook`
-- optionally deploys mock WBTC and USDC
-- registers supported assets in `NotePool`
-- seeds initial shielded swap liquidity
-- writes `deployments/sepolia.json`
-- writes `frontend/.env.local`
+### Render Indexer
 
-### 4. Seed example market state
+The repo includes [`render.yaml`](/Users/ginmax/DarkBTC/render.yaml) for the indexer service.
 
-```bash
-node scripts/seed.mjs
-```
+Expected service:
 
-The seed script creates:
+- service name: `darkbtc-indexer`
+- health check: `/health`
+- runtime: Node
+- frontend-facing base URL: `https://darkbtc-indexer.onrender.com`
 
-- an active auction
-- a reveal-phase auction
-- a settled auction
-- five example dark orders, with fills for the first three
+### Vercel Frontend
 
-### 5. Fund a wallet from the deployer account
+Deploy from the [`frontend`](/Users/ginmax/DarkBTC/frontend) directory. [`frontend/vercel.json`](/Users/ginmax/DarkBTC/frontend/vercel.json) rewrites:
 
-```bash
-node scripts/faucet.mjs --recipient 0x... --wbtc 10 --usdc 100000
-```
-
-### Legacy scripts
-
-The older `scripts/deploy.ts` and `scripts/seed.ts` remain in the repo, but the `.mjs` scripts are the current documented path.
-
-## Current Sepolia Deployment
-
-The checked-in deployment manifest currently points at the following Sepolia addresses:
-
-| Item | Address |
-| --- | --- |
-| RPC | `https://api.cartridge.gg/x/starknet/sepolia` |
-| NotePool | `0x5627a60f4511c403babe3092170d0208627cd4bc5a914fd6cd42aa705fb9a52` |
-| ShieldedSwap | `0x0f212bfaeef11e9b6354fdb60c0d2b8598f71eb14605ee113ef9bc85d678cea` |
-| SealedAuction | `0x05b5afb9515f30cec544001ff1be117560c5050d0178d7c21f578ccf7f2667ff` |
-| DarkOrderbook | `0x04c6698f7279fad2e0722483e31333c38599d68f7db4e5de25a8013ce55ebe3a` |
-| WBTC | `0x30da440e0911576918df9523e84a45ae2052589996612f97d2a5724444c3a51` |
-| USDC | `0x5752cd65bc0d110b8b906883a7c6ec4c919cb5791907a6e978d12d38f15b5f6` |
-| Auction deposit token | `0x5752cd65bc0d110b8b906883a7c6ec4c919cb5791907a6e978d12d38f15b5f6` |
-
-The deployment manifest was recorded at Starknet block `8252303`.
-
-## Environment Variables
-
-`.env.example` documents the primary runtime variables.
-
-| Variable | Used by | Description |
-| --- | --- | --- |
-| `DEPLOYER_PRIVATE_KEY` | scripts | Account private key used for deployment, seeding, and faucet actions |
-| `DEPLOYER_ADDRESS` | scripts | Starknet account address matching the private key |
-| `RPC_URL` | scripts, indexer | Primary Starknet RPC URL |
-| `RPC_UPSTREAMS` | indexer, docker | Comma-separated RPC URLs for `/rpc` proxy failover |
-| `VITE_NOTE_POOL_ADDRESS` | frontend, indexer | Deployed `NotePool` address |
-| `VITE_SHIELDED_SWAP_ADDRESS` | frontend, indexer | Deployed `ShieldedSwap` address |
-| `VITE_SEALED_AUCTION_ADDRESS` | frontend, indexer | Deployed `SealedAuction` address |
-| `VITE_DARK_ORDERBOOK_ADDRESS` | frontend, indexer | Deployed `DarkOrderbook` address |
-| `VITE_CHAIN_ID` | frontend | Current chain identifier, defaults to `SN_SEPOLIA` |
-| `VITE_RPC_URL` | frontend | RPC URL used by the frontend, usually `/rpc` in dev |
-| `VITE_WBTC_ADDRESS` | frontend | WBTC token contract |
-| `VITE_WBTC_DECIMALS` | frontend | WBTC decimals, currently `18` in the checked-in deployment |
-| `VITE_USDC_ADDRESS` | frontend | USDC token contract |
-| `VITE_USDC_DECIMALS` | frontend | USDC decimals, currently `18` in the checked-in deployment |
-| `VITE_AUCTION_DEPOSIT_TOKEN` | frontend | Token used to escrow auction deposits |
-| `VITE_INDEXER_URL` | frontend | Indexer base path, usually `/api` in dev |
-| `INDEXER_HOST` | indexer | Bind address for the Node HTTP server |
-| `PORT` | indexer | Port for the Node HTTP server |
-| `INDEXER_PROXY_TARGET` | frontend dev server | Backend target used by Vite proxy rules |
-
-## Testing and Quality Checks
-
-### Cairo tests
-
-```bash
-cd contracts
-snforge test
-```
-
-### Frontend unit tests
+- `/api/*` to the Render indexer
+- `/rpc/*` to the Render indexer
+- SPA routes back to `index.html`
 
 ```bash
 cd frontend
-pnpm test --run
+vercel link --yes --project dark-btc --scope kiwi-protocols-projects
+vercel --prod
 ```
 
-### Frontend build
+## Repository Layout
 
-```bash
-cd frontend
-pnpm build
+```text
+abis/             Contract ABIs used by scripts and the indexer
+contracts/        Cairo contracts and tests
+deployments/      Network manifests
+frontend/         Vite + React trading interface
+indexer/          Render-deployed API and RPC proxy
+render.yaml       Render blueprint for the indexer
+scripts/          Deploy, seed, faucet, and smoke verification scripts
 ```
 
-### Frontend lint
+## Team
 
-```bash
-cd frontend
-pnpm lint
-```
-
-## Troubleshooting
-
-### The UI loads but actions are disabled
-
-Check that the deployed contract and token addresses are set. Many hooks explicitly guard against `0x0` placeholders.
-
-### `GET /api/proof/<commitment>` returns an error
-
-The commitment may never have been emitted by `NotePool`, or the indexer may be pointing at the wrong RPC upstream or starting block.
-
-### The indexer fails locally with a module import error
-
-Install frontend dependencies first. The indexer reuses the `starknet` package from `frontend/node_modules`.
-
-### The frontend cannot talk to Starknet locally
-
-Make sure the Vite proxy target and indexer are both running, and that `VITE_RPC_URL` is set to `/rpc` for development.
-
-### You accidentally generated `.starknet_accounts.json`
-
-That file can contain private keys for local Starknet accounts. It should stay local and is now ignored by `.gitignore`.
-
-## Security Notes
-
-- Secrets for notes, bids, and private orders are generated client-side and stored in browser local storage.
-- The indexer consumes only public chain data and environment configuration; it does not need note secrets.
-- `frontend/.env.local` is generated by deployment scripts and should be treated as local runtime state.
-- `deployments/sepolia.json` is intentionally committed because it describes a public testnet deployment.
-
-
+Add the submitting team members here before final hackathon submission.
 
 ## License
 
-MIT © ShadowFinance 2024
+MIT

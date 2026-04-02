@@ -44,7 +44,11 @@ export const useDarkBTCStore = create<DarkBTCState>()(
       activeTab: '/',
 
       addNote: (note) =>
-        set((state) => ({ notes: [...state.notes, note] })),
+        set((state) => ({
+          notes: state.notes.some((existing) => existing.commitment === note.commitment)
+            ? state.notes
+            : [...state.notes, note],
+        })),
 
       markNoteSpent: (commitment) =>
         set((state) => ({
@@ -59,7 +63,11 @@ export const useDarkBTCStore = create<DarkBTCState>()(
         ),
 
       addOrder: (order) =>
-        set((state) => ({ myOrders: [...state.myOrders, order] })),
+        set((state) => ({
+          myOrders: state.myOrders.some((existing) => existing.orderId === order.orderId)
+            ? state.myOrders
+            : [...state.myOrders, order],
+        })),
 
       markOrderFilled: (orderId) =>
         set((state) => ({
@@ -87,7 +95,11 @@ export const useDarkBTCStore = create<DarkBTCState>()(
         get().bidSecrets.find((b) => b.auctionId === auctionId),
 
       addPendingTx: (tx) =>
-        set((state) => ({ pendingTxs: [...state.pendingTxs, tx] })),
+        set((state) => ({
+          pendingTxs: state.pendingTxs.some((existing) => existing.hash === tx.hash)
+            ? state.pendingTxs
+            : [...state.pendingTxs, tx],
+        })),
 
       removePendingTx: (hash) =>
         set((state) => ({
